@@ -54,6 +54,12 @@ router.afterEach(() => {
           설정
         </RouterLink>
       </nav>
+      <div class="nav-footer" style="margin-top: auto;">
+        <button @click="handleLogout" class="nav-item logout-btn">
+          <span class="icon">🚪</span>
+          로그아웃
+        </button>
+      </div>
     </aside>
     <main class="main-content">
       <header class="header">
@@ -63,10 +69,9 @@ router.afterEach(() => {
           </button>
           <h1 class="page-title">환영합니다, 선생님!</h1>
         </div>
-        <div class="user-profile" @click="handleLogout" title="로그아웃">
+        <div class="user-profile">
           <div class="avatar">T</div>
           <span class="user-name">Teacher Name</span>
-          <span class="logout-icon">🚪</span>
         </div>
       </header>
       <div class="content-area">
@@ -193,15 +198,7 @@ router.afterEach(() => {
   background-color: var(--color-bg-light);
 }
 
-.logout-icon {
-  font-size: 1.2rem;
-  opacity: 0;
-  transition: opacity 0.2s;
-}
 
-.user-profile:hover .logout-icon {
-  opacity: 1;
-}
 
 .avatar {
   width: 36px;
@@ -259,5 +256,16 @@ router.afterEach(() => {
   .content-area {
     padding: 1rem;
   }
+}
+
+
+.logout-btn {
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  font-size: inherit;
 }
 </style>
