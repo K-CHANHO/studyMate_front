@@ -7,6 +7,7 @@ const authStore = useAuthStore()
 const router = useRouter()
 
 const form = ref({
+  userId: '',
   name: '',
   email: '',
   password: '',
@@ -35,10 +36,30 @@ const handleSignup = async () => {
     alert('회원가입이 완료되었습니다. 로그인해주세요.')
     router.push('/login')
   } catch (error) {
-    errorMessage.value = '회원가입 중 오류가 발생했습니다.'
+    if (error.response && error.response.data && error.response.data.message) {
+      errorMessage.value = error.response.data.message
+    } else {
+      errorMessage.value = '회원가입 중 오류가 발생했습니다.'
+    }
   } finally {
     isLoading.value = false
   }
+}
+
+const formatPhoneNumber = (event) => {
+  let value = event.target.value.replace(/[^0-9]/g, '')
+  
+  if (value.length > 11) {
+    value = value.slice(0, 11)
+  }
+
+  if (value.length > 3 && value.length <= 7) {
+    value = value.replace(/(\d{3})(\d{1,4})/, '$1-$2')
+  } else if (value.length >= 8) {
+    value = value.replace(/(\d{3})(\d{3,4})(\d{4})/, '$1-$2-$3')
+  }
+
+  form.value.phone = value
 }
 </script>
 
@@ -51,6 +72,18 @@ const handleSignup = async () => {
       </div>
 
       <form @submit.prevent="handleSignup" class="signup-form">
+        <div class="form-group">
+          <label for="userId">아이디</label>
+          <input 
+            type="text" 
+            id="userId" 
+            v-model="form.userId" 
+            placeholder="아이디를 입력해주세요"
+            required
+            :disabled="isLoading"
+          />
+        </div>
+
         <div class="form-group">
           <label for="name">이름</label>
           <input 
@@ -76,12 +109,14 @@ const handleSignup = async () => {
         </div>
 
         <div class="form-group">
-          <label for="phone">연락처</label>
+          <label for="phone">핸드폰 번호</label>
           <input 
             type="tel" 
             id="phone" 
             v-model="form.phone" 
+            @input="formatPhoneNumber"
             placeholder="010-0000-0000"
+            maxlength="13"
             required
             :disabled="isLoading"
           />

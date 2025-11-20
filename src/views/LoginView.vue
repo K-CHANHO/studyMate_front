@@ -6,14 +6,14 @@ import { useRouter } from 'vue-router'
 const authStore = useAuthStore()
 const router = useRouter()
 
-const email = ref('')
+const userId = ref('')
 const password = ref('')
 const isLoading = ref(false)
 const errorMessage = ref('')
 
 const handleLogin = async () => {
-  if (!email.value || !password.value) {
-    errorMessage.value = '이메일과 비밀번호를 모두 입력해주세요.'
+  if (!userId.value || !password.value) {
+    errorMessage.value = '아이디와 비밀번호를 모두 입력해주세요.'
     return
   }
 
@@ -21,7 +21,7 @@ const handleLogin = async () => {
   errorMessage.value = ''
 
   try {
-    await authStore.login(email.value, password.value)
+    await authStore.login(userId.value, password.value)
     router.push('/')
   } catch (error) {
     errorMessage.value = '로그인에 실패했습니다. 아이디와 비밀번호를 확인해주세요.'
@@ -41,12 +41,12 @@ const handleLogin = async () => {
 
       <form @submit.prevent="handleLogin" class="login-form">
         <div class="form-group">
-          <label for="email">이메일</label>
+          <label for="userId">아이디</label>
           <input 
-            type="email" 
-            id="email" 
-            v-model="email" 
-            placeholder="example@email.com"
+            type="text" 
+            id="userId" 
+            v-model="userId" 
+            placeholder="아이디를 입력하세요"
             required
             :disabled="isLoading"
           />
