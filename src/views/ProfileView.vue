@@ -8,7 +8,7 @@ const authStore = useAuthStore()
   <div class="profile-view">
     <h2>내 프로필</h2>
 
-    <div class="profile-card">
+    <div class="profile-card card">
       <div class="profile-header">
         <div class="avatar-large">
           {{ authStore.user?.name?.[0] || 'T' }}
@@ -52,11 +52,7 @@ h2 {
 }
 
 .profile-card {
-  background: white;
-  border-radius: var(--radius-lg);
-  padding: 2rem;
-  box-shadow: var(--shadow-md);
-  border: 1px solid var(--color-border);
+  /* Redundant styles removed */
 }
 
 .profile-header {

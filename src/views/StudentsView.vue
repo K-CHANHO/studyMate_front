@@ -146,7 +146,11 @@ onMounted(() => {
     </div>
 
     <div v-else class="students-grid">
-      <div v-for="student in students" :key="student.studentId" class="student-card">
+      <div
+        v-for="student in students"
+        :key="student.studentId"
+        class="student-card card card-hover"
+      >
         <div class="card-header">
           <h3>{{ student.name }}</h3>
           <span class="student-id">ID: {{ student.studentId }}</span>
@@ -259,22 +263,9 @@ onMounted(() => {
 }
 
 .student-card {
-  background: white;
-  border-radius: var(--radius-lg);
-  padding: 1.5rem;
-  box-shadow: var(--shadow-sm);
-  border: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  transition:
-    transform 0.2s,
-    box-shadow 0.2s;
-}
-
-.student-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
 }
 
 .card-header {

@@ -63,13 +63,10 @@ router.afterEach(() => {
           <button class="menu-btn" @click="toggleSidebar">
             <span class="icon">☰</span>
           </button>
-          <h1 class="page-title">환영합니다, 선생님!</h1>
+          <h1 class="page-title">환영합니다, {{ authStore.user?.name || '' }} 선생님!</h1>
         </div>
         <div class="user-profile" @click="router.push('/profile')">
           <div class="avatar">{{ authStore.user?.name?.[0] || 'T' }}</div>
-          <span class="user-name">{{
-            authStore.user?.name || authStore.user?.userId || 'Guest'
-          }}</span>
         </div>
       </header>
       <div class="content-area">
@@ -108,6 +105,7 @@ router.afterEach(() => {
 .logo {
   margin-bottom: 2rem;
   color: var(--color-primary);
+  font-family: 'Outfit', sans-serif;
   font-weight: 700;
   font-size: 1.5rem;
   display: flex;

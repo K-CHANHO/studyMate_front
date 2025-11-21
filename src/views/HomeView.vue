@@ -1,31 +1,53 @@
 <script setup>
+import { ref, onMounted } from 'vue'
+import { useAuthStore } from '@/stores/auth'
+import api from '@/api'
+
+const authStore = useAuthStore()
+const studentCount = ref(0)
+
+const fetchDashboardData = async () => {
+  if (!authStore.user?.userId) return
+
+  try {
+    // Fetch students count
+    const studentsRes = await api.get(`/students?userId=${authStore.user.userId}`)
+    studentCount.value = studentsRes.data.data.length
+  } catch (error) {
+    console.error('Failed to fetch dashboard data:', error)
+  }
+}
+
+onMounted(() => {
+  fetchDashboardData()
+})
 </script>
 
 <template>
   <div class="dashboard">
     <div class="stats-grid">
-      <div class="stat-card">
+      <div class="stat-card card card-hover">
         <div class="stat-icon bg-blue">👥</div>
         <div class="stat-info">
           <h3>총 학생 수</h3>
-          <p class="stat-value">12명</p>
+          <p class="stat-value">{{ studentCount }}명</p>
         </div>
       </div>
-      <div class="stat-card">
+      <div class="stat-card card card-hover">
         <div class="stat-icon bg-green">📅</div>
         <div class="stat-info">
           <h3>오늘 수업</h3>
           <p class="stat-value">3건</p>
         </div>
       </div>
-      <div class="stat-card">
+      <div class="stat-card card card-hover">
         <div class="stat-icon bg-orange">💰</div>
         <div class="stat-info">
           <h3>이번 달 수익</h3>
           <p class="stat-value">₩1,200,000</p>
         </div>
       </div>
-      <div class="stat-card">
+      <div class="stat-card card card-hover">
         <div class="stat-icon bg-red">⚠️</div>
         <div class="stat-info">
           <h3>미납 내역</h3>
@@ -34,7 +56,7 @@
       </div>
     </div>
 
-    <div class="recent-activity">
+    <div class="recent-activity card">
       <h2>최근 활동</h2>
       <div class="activity-list">
         <div class="activity-item" v-for="i in 3" :key="i">
@@ -63,19 +85,10 @@
 }
 
 .stat-card {
-  background: white;
-  padding: 1.5rem;
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
   display: flex;
   align-items: center;
   gap: 1rem;
-  transition: transform 0.2s;
-}
-
-.stat-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
+  border: none; /* Override default card border if needed, or keep it */
 }
 
 .stat-icon {
@@ -88,10 +101,22 @@
   font-size: 1.5rem;
 }
 
-.bg-blue { background-color: #E0E7FF; color: #4F46E5; }
-.bg-green { background-color: #D1FAE5; color: #10B981; }
-.bg-orange { background-color: #FEF3C7; color: #F59E0B; }
-.bg-red { background-color: #FEE2E2; color: #EF4444; }
+.bg-blue {
+  background-color: #e0e7ff;
+  color: #4f46e5;
+}
+.bg-green {
+  background-color: #d1fae5;
+  color: #10b981;
+}
+.bg-orange {
+  background-color: #fef3c7;
+  color: #f59e0b;
+}
+.bg-red {
+  background-color: #fee2e2;
+  color: #ef4444;
+}
 
 .stat-info h3 {
   font-size: 0.875rem;
@@ -103,13 +128,6 @@
   font-size: 1.5rem;
   font-weight: 700;
   color: var(--color-text-main);
-}
-
-.recent-activity {
-  background: white;
-  padding: 1.5rem;
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
 }
 
 .recent-activity h2 {

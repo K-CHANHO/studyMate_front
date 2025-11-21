@@ -149,3 +149,23 @@
 .btn-full {
   width: 100%;
 }
+
+/* Card Styles */
+.card {
+  background: white;
+  padding: 1.5rem;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--color-border);
+}
+
+.card-hover {
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s;
+}
+
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
