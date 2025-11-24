@@ -9,7 +9,6 @@ const router = useRouter()
 const form = ref({
   userId: '',
   name: '',
-  email: '',
   password: '',
   passwordConfirm: '',
   phone: ''
@@ -75,10 +74,10 @@ const formatPhoneNumber = (event) => {
         <div class="form-group">
           <label for="userId">아이디</label>
           <input 
-            type="text" 
+            type="email" 
             id="userId" 
             v-model="form.userId" 
-            placeholder="아이디를 입력해주세요"
+            placeholder="example@email.com"
             required
             :disabled="isLoading"
           />
@@ -91,18 +90,6 @@ const formatPhoneNumber = (event) => {
             id="name" 
             v-model="form.name" 
             placeholder="실명을 입력해주세요"
-            required
-            :disabled="isLoading"
-          />
-        </div>
-
-        <div class="form-group">
-          <label for="email">이메일</label>
-          <input 
-            type="email" 
-            id="email" 
-            v-model="form.email" 
-            placeholder="example@email.com"
             required
             :disabled="isLoading"
           />
