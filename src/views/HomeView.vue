@@ -5,6 +5,7 @@ import api from '@/api'
 
 const authStore = useAuthStore()
 const studentCount = ref(0)
+const todayClassCount = ref(0)
 
 const fetchDashboardData = async () => {
   if (!authStore.user?.userId) return
@@ -13,6 +14,10 @@ const fetchDashboardData = async () => {
     // Fetch students count
     const studentsRes = await api.get(`/students?userId=${authStore.user.userId}`)
     studentCount.value = studentsRes.data.data.length
+
+    // Fetch today's schedules
+    const todayRes = await api.get(`/schedules/today?userId=${authStore.user.userId}`)
+    todayClassCount.value = todayRes.data.data.length
   } catch (error) {
     console.error('Failed to fetch dashboard data:', error)
   }
@@ -37,7 +42,7 @@ onMounted(() => {
         <div class="stat-icon bg-green">📅</div>
         <div class="stat-info">
           <h3>오늘 수업</h3>
-          <p class="stat-value">3건</p>
+          <p class="stat-value">{{ todayClassCount }}건</p>
         </div>
       </div>
       <div class="stat-card card card-hover">
