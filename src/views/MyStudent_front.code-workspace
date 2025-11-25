@@ -1,0 +1,14 @@
+{
+  "folders": [
+    {
+      "path": "../..",
+    },
+    {
+      "path": "../../../MyStudent_back/myStudent",
+    },
+  ],
+  "settings": {
+    "java.compile.nullAnalysis.mode": "automatic",
+    "java.configuration.updateBuildConfiguration": "interactive",
+  },
+}

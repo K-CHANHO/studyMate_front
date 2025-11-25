@@ -1,9 +1,11 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import { useModalStore } from '@/stores/modal'
 import { useRouter } from 'vue-router'
 
 const authStore = useAuthStore()
+const modalStore = useModalStore()
 const router = useRouter()
 
 const form = ref({
@@ -11,7 +13,7 @@ const form = ref({
   name: '',
   password: '',
   passwordConfirm: '',
-  phone: ''
+  phone: '',
 })
 
 const isLoading = ref(false)
@@ -32,7 +34,7 @@ const handleSignup = async () => {
 
   try {
     await authStore.signup(form.value)
-    alert('회원가입이 완료되었습니다. 로그인해주세요.')
+    await modalStore.alert('회원가입이 완료되었습니다. 로그인해주세요.')
     router.push('/login')
   } catch (error) {
     if (error.response && error.response.data && error.response.data.message) {
@@ -47,7 +49,7 @@ const handleSignup = async () => {
 
 const formatPhoneNumber = (event) => {
   let value = event.target.value.replace(/[^0-9]/g, '')
-  
+
   if (value.length > 11) {
     value = value.slice(0, 11)
   }
@@ -73,10 +75,10 @@ const formatPhoneNumber = (event) => {
       <form @submit.prevent="handleSignup" class="signup-form">
         <div class="form-group">
           <label for="userId">아이디</label>
-          <input 
-            type="email" 
-            id="userId" 
-            v-model="form.userId" 
+          <input
+            type="email"
+            id="userId"
+            v-model="form.userId"
             placeholder="example@email.com"
             required
             :disabled="isLoading"
@@ -85,10 +87,10 @@ const formatPhoneNumber = (event) => {
 
         <div class="form-group">
           <label for="name">이름</label>
-          <input 
-            type="text" 
-            id="name" 
-            v-model="form.name" 
+          <input
+            type="text"
+            id="name"
+            v-model="form.name"
             placeholder="실명을 입력해주세요"
             required
             :disabled="isLoading"
@@ -97,10 +99,10 @@ const formatPhoneNumber = (event) => {
 
         <div class="form-group">
           <label for="phone">핸드폰 번호</label>
-          <input 
-            type="tel" 
-            id="phone" 
-            v-model="form.phone" 
+          <input
+            type="tel"
+            id="phone"
+            v-model="form.phone"
             @input="formatPhoneNumber"
             placeholder="010-0000-0000"
             maxlength="13"
@@ -111,10 +113,10 @@ const formatPhoneNumber = (event) => {
 
         <div class="form-group">
           <label for="password">비밀번호</label>
-          <input 
-            type="password" 
-            id="password" 
-            v-model="form.password" 
+          <input
+            type="password"
+            id="password"
+            v-model="form.password"
             placeholder="8자 이상 입력해주세요"
             minlength="8"
             required
@@ -124,10 +126,10 @@ const formatPhoneNumber = (event) => {
 
         <div class="form-group">
           <label for="passwordConfirm">비밀번호 확인</label>
-          <input 
-            type="password" 
-            id="passwordConfirm" 
-            v-model="form.passwordConfirm" 
+          <input
+            type="password"
+            id="passwordConfirm"
+            v-model="form.passwordConfirm"
             placeholder="비밀번호를 다시 입력해주세요"
             required
             :disabled="isLoading"
@@ -262,7 +264,7 @@ const formatPhoneNumber = (event) => {
   color: var(--color-danger);
   font-size: 0.875rem;
   text-align: center;
-  background-color: #FEF2F2;
+  background-color: #fef2f2;
   padding: 0.5rem;
   border-radius: var(--radius-sm);
 }
