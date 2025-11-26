@@ -210,8 +210,20 @@ const fetchStudentSubjects = async (studentId) => {
     console.log('Fetching subjects for studentId:', studentId, 'userId:', authStore.user.userId)
     const response = await api.get(`/api/student-subject/${studentId}/${authStore.user.userId}`)
     console.log('API Response:', response.data)
-    studentSubjects.value = response.data.data
+    const subjects = response.data.data || []
+    studentSubjects.value = subjects
     console.log('Student subjects:', studentSubjects.value)
+
+    // Update the main students list to reflect changes in real-time
+    const studentIndex = students.value.findIndex((s) => s.studentId === studentId)
+    if (studentIndex !== -1) {
+      const totalFee = subjects.reduce((sum, subject) => sum + (subject.price || 0), 0)
+      students.value[studentIndex] = {
+        ...students.value[studentIndex],
+        subjects,
+        totalFee,
+      }
+    }
   } catch (error) {
     console.error('Failed to fetch subjects:', error)
     console.error('Error response:', error.response)
