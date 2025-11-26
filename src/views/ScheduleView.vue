@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import FullCalendar from '@fullcalendar/vue3'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
@@ -156,15 +156,47 @@ const form = ref({
   content: '',
 })
 
-const subjects = [
-  { value: 'KOREAN', label: '국어' },
-  { value: 'MATH', label: '수학' },
-  { value: 'ENGLISH', label: '영어' },
-  { value: 'SCIENCE', label: '과학' },
-  { value: 'SOCIAL', label: '사회' },
-  { value: 'HISTORY', label: '역사' },
-  { value: 'OTHER', label: '기타' },
-]
+const studentSubjects = ref([])
+
+// Fetch subjects for a given student
+const loadStudentSubjects = async (studentId) => {
+  if (!authStore.user?.userId) return
+  try {
+    const response = await api.get(`/api/student-subject/${studentId}/${authStore.user.userId}`)
+    // response data is an array of subject objects
+    studentSubjects.value = response.data.data || []
+  } catch (error) {
+    console.error(`Failed to fetch subjects for student ${studentId}:`, error)
+    studentSubjects.value = []
+  }
+}
+
+// Watch for changes in selected student ID to load subjects
+watch(
+  () => form.value.studentId,
+  (newStudentId) => {
+    if (newStudentId) {
+      loadStudentSubjects(newStudentId)
+    } else {
+      studentSubjects.value = []
+    }
+  },
+)
+
+// Set default subject when studentSubjects are loaded
+watch(
+  () => studentSubjects.value,
+  (newSubs) => {
+    if (newSubs.length > 0) {
+      // If current subject is not in the new list, reset to first
+      const current = form.value.subject
+      const exists = newSubs.find((s) => s.subject === current)
+      form.value.subject = exists ? current : newSubs[0].subject
+    } else {
+      form.value.subject = ''
+    }
+  },
+)
 
 const fetchStudents = async () => {
   if (!authStore.user?.userId) return
@@ -219,10 +251,14 @@ const openCreateModal = () => {
     classLocation: '',
     content: '',
   }
+  // Load subjects for the default student
+  if (form.value.studentId) {
+    loadStudentSubjects(form.value.studentId)
+  }
   showModal.value = true
 }
 
-const openEditModal = () => {
+const openEditModal = async () => {
   if (!selectedEvent.value) return
 
   isEditing.value = true
@@ -236,6 +272,11 @@ const openEditModal = () => {
   const localDate = new Date(start.getTime() - offset)
   const dateStr = localDate.toISOString().split('T')[0]
   const timeStr = localDate.toISOString().split('T')[1].slice(0, 5)
+
+  // Load subjects for the student of this schedule
+  if (props.studentId) {
+    await loadStudentSubjects(props.studentId)
+  }
 
   // Find student ID from name (This is tricky if we only have name, but we have studentId in extendedProps? No, we didn't put it there.
   // We need to put studentId in extendedProps in fetchEvents first!
@@ -383,8 +424,12 @@ const handleSubmit = async () => {
           <div class="form-group">
             <label>과목 <span class="required">*</span></label>
             <select v-model="form.subject" required :disabled="isLoading">
-              <option v-for="sub in subjects" :key="sub.value" :value="sub.value">
-                {{ sub.label }}
+              <option
+                v-for="sub in studentSubjects"
+                :key="sub.studentSubjectId"
+                :value="sub.subject"
+              >
+                {{ getSubjectLabel(sub.subject) }}
               </option>
             </select>
           </div>
