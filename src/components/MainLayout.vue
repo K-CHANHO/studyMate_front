@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/auth'
 const router = useRouter()
 const authStore = useAuthStore()
 const isSidebarOpen = ref(false)
+const isClassMenuOpen = ref(true) // Default open or closed as preferred
 
 const toggleSidebar = () => {
   isSidebarOpen.value = !isSidebarOpen.value
@@ -41,6 +42,32 @@ router.afterEach(() => {
           <span class="icon">👨‍🎓</span>
           학생 관리
         </RouterLink>
+
+        <!-- Class Management Submenu -->
+        <div class="nav-group">
+          <button class="nav-item nav-group-toggle" @click="isClassMenuOpen = !isClassMenuOpen">
+            <div class="nav-item-content">
+              <span class="icon">📚</span>
+              수업 관리
+            </div>
+            <span class="arrow" :class="{ rotated: isClassMenuOpen }">▼</span>
+          </button>
+          <div class="nav-subitems" v-show="isClassMenuOpen">
+            <RouterLink to="/attendance" class="nav-item sub-item" active-class="active">
+              <span class="icon">✅</span>
+              출석체크
+            </RouterLink>
+            <RouterLink to="/progress" class="nav-item sub-item" active-class="active">
+              <span class="icon">📈</span>
+              진도기록
+            </RouterLink>
+            <RouterLink to="/homework" class="nav-item sub-item" active-class="active">
+              <span class="icon">📝</span>
+              숙제관리
+            </RouterLink>
+          </div>
+        </div>
+
         <RouterLink to="/schedule" class="nav-item" active-class="active">
           <span class="icon">📅</span>
           수업 일정
@@ -138,6 +165,50 @@ router.afterEach(() => {
 .nav-item.active {
   background-color: var(--color-primary);
   color: white;
+}
+
+.nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.nav-group-toggle {
+  justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.nav-item-content {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.arrow {
+  font-size: 0.7rem;
+  transition: transform 0.2s;
+}
+
+.arrow.rotated {
+  transform: rotate(180deg);
+}
+
+.nav-subitems {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding-left: 1rem; /* Indent sub-items */
+  margin-bottom: 0.5rem;
+}
+
+.sub-item {
+  font-size: 0.95rem;
+  padding: 0.5rem 1rem;
 }
 
 .main-content {

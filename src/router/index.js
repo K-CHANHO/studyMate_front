@@ -30,6 +30,24 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/attendance',
+      name: 'attendance',
+      component: () => import('../views/AttendanceView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/progress',
+      name: 'progress',
+      component: () => import('../views/ProgressView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/homework',
+      name: 'homework',
+      component: () => import('../views/HomeworkView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/schedule',
       name: 'schedule',
       component: () => import('../views/ScheduleView.vue'),
