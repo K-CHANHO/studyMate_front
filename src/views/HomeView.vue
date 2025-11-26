@@ -1,8 +1,10 @@
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import api from '@/api'
 
+const router = useRouter()
 const authStore = useAuthStore()
 const studentCount = ref(0)
 const todayClassCount = ref(0)
@@ -26,19 +28,23 @@ const fetchDashboardData = async () => {
 onMounted(() => {
   fetchDashboardData()
 })
+
+const navigateTo = (path) => {
+  router.push(path)
+}
 </script>
 
 <template>
   <div class="dashboard">
     <div class="stats-grid">
-      <div class="stat-card card card-hover">
+      <div class="stat-card card card-hover clickable" @click="navigateTo('/students')">
         <div class="stat-icon bg-blue">👥</div>
         <div class="stat-info">
           <h3>총 학생 수</h3>
           <p class="stat-value">{{ studentCount }}명</p>
         </div>
       </div>
-      <div class="stat-card card card-hover">
+      <div class="stat-card card card-hover clickable" @click="navigateTo('/attendance')">
         <div class="stat-icon bg-green">📅</div>
         <div class="stat-info">
           <h3>오늘 수업</h3>
@@ -94,6 +100,18 @@ onMounted(() => {
   align-items: center;
   gap: 1rem;
   border: none; /* Override default card border if needed, or keep it */
+}
+
+.clickable {
+  cursor: pointer;
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s;
+}
+
+.clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .stat-icon {
