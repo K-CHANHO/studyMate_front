@@ -25,3 +25,18 @@ export const getUnderstandingLabel = (understanding) => {
 
   return understanding
 }
+
+export const UNDERSTANDING_COLORS = {
+  HIGH: '#10b981',
+  MEDIUM: '#f59e0b',
+  LOW: '#ef4444',
+}
+
+export const getUnderstandingColor = (understanding) => {
+  // 객체인 경우
+  if (understanding && typeof understanding === 'object' && understanding.name) {
+    return UNDERSTANDING_COLORS[understanding.name] || '#6b7280'
+  }
+  // 문자열인 경우
+  return UNDERSTANDING_COLORS[understanding] || '#6b7280'
+}

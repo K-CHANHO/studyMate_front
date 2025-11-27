@@ -4,7 +4,8 @@ import { useAuthStore } from '@/stores/auth'
 import { useModalStore } from '@/stores/modal'
 import api from '@/api'
 import { toDateTimeLocal, formatDate } from '@/utils/dateUtils'
-import { getSubjectLabel, getSubjectName } from '@/utils/subjectUtils'
+import { getLabel, getName } from '@/utils/enumUtils'
+import { getUnderstandingColor } from '@/utils/understandingUtils' // 색상은 디자인 요소라 유지
 
 const authStore = useAuthStore()
 const modalStore = useModalStore()
@@ -130,7 +131,7 @@ const saveTextbook = async () => {
       studentId: selectedStudentId.value,
       userId: authStore.user.userId,
       title: textbookForm.value.title,
-      subject: getSubjectName(textbookForm.value.subject),
+      subject: getName(textbookForm.value.subject),
       totalUnit: textbookForm.value.totalUnit,
     })
 
@@ -176,16 +177,6 @@ const saveProgress = async () => {
     console.error('Failed to save progress:', error)
     modalStore.alert('진도 기록에 실패했습니다.')
   }
-}
-
-const getUnderstandingLabel = (level) => {
-  const map = { HIGH: '상', MEDIUM: '중', LOW: '하' }
-  return map[level] || level
-}
-
-const getUnderstandingColor = (level) => {
-  const map = { HIGH: '#10b981', MEDIUM: '#f59e0b', LOW: '#ef4444' }
-  return map[level] || '#6b7280'
 }
 
 onMounted(() => {
@@ -238,11 +229,13 @@ onMounted(() => {
               @click="selectTextbook(textbook.id)"
             >
               <div class="textbook-header">
-                <span class="subject-badge">{{ getSubjectLabel(textbook.subject) }}</span>
+                <span class="subject-badge">{{ getLabel(textbook.subject) }}</span>
                 <span
                   class="status-dot"
                   :class="{ completed: textbook.status === 'COMPLETED' }"
+                  :title="getLabel(textbook.status)"
                 ></span>
+                <span class="status-text">{{ getLabel(textbook.status) }}</span>
               </div>
               <h3>{{ textbook.title }}</h3>
               <div class="progress-info">
@@ -284,7 +277,7 @@ onMounted(() => {
                         color: getUnderstandingColor(record.understanding),
                       }"
                     >
-                      이해도 {{ getUnderstandingLabel(record.understanding) }}
+                      이해도 {{ getLabel(record.understanding) }}
                     </span>
                   </div>
                   <div class="record-body">
@@ -323,7 +316,7 @@ onMounted(() => {
                 :key="subject.studentSubjectId"
                 :value="subject.subject"
               >
-                {{ getSubjectLabel(subject.subject) }}
+                {{ getLabel(subject.subject) }}
               </option>
             </select>
           </div>
@@ -518,9 +511,16 @@ onMounted(() => {
 .subject-badge {
   font-size: 0.75rem;
   background-color: #f1f5f9;
-  padding: 0.2rem 0.5rem;
+  padding: 0.25rem 0.5rem;
   border-radius: 4px;
-  color: var(--color-text-sub);
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.status-text {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin-left: 0.25rem;
 }
 
 .progress-info {
