@@ -64,6 +64,14 @@ export default defineConfig({
           }
         },
       },
+      '/textbooks': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+      '/progress': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
     },
   },
 })

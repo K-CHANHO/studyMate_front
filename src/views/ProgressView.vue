@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useModalStore } from '@/stores/modal'
 import api from '@/api'
 import { toDateTimeLocal, formatDate } from '@/utils/dateUtils'
+import { getSubjectLabel, getSubjectName } from '@/utils/subjectUtils'
 
 const authStore = useAuthStore()
 const modalStore = useModalStore()
@@ -15,62 +16,9 @@ const selectedTextbookId = ref(null)
 const showTextbookModal = ref(false)
 const showProgressModal = ref(false)
 
-// Dummy Data for UI Prototyping
-const textbooks = ref([
-  {
-    id: 1,
-    studentId: 1,
-    title: '쎈 수학 (상)',
-    subject: 'MATH',
-    totalUnit: 15,
-    currentUnit: 3,
-    status: 'IN_PROGRESS', // IN_PROGRESS, COMPLETED
-    lastUpdate: '2023-11-25',
-  },
-  {
-    id: 2,
-    studentId: 1,
-    title: '개념원리 수학 (상)',
-    subject: 'MATH',
-    totalUnit: 12,
-    currentUnit: 5,
-    status: 'IN_PROGRESS',
-    lastUpdate: '2023-11-26',
-  },
-  {
-    id: 3,
-    studentId: 2,
-    title: '자이스토리 영어 독해',
-    subject: 'ENGLISH',
-    totalUnit: 20,
-    currentUnit: 2,
-    status: 'IN_PROGRESS',
-    lastUpdate: '2023-11-24',
-  },
-])
-
-const progressHistory = ref([
-  {
-    id: 1,
-    textbookId: 1,
-    date: '2023-11-25',
-    unit: '2. 나머지정리',
-    pageStart: 30,
-    pageEnd: 35,
-    understanding: 'HIGH', // HIGH, MEDIUM, LOW
-    memo: '나머지정리 개념 완벽 이해함. 심화 문제 풀이 필요.',
-  },
-  {
-    id: 2,
-    textbookId: 1,
-    date: '2023-11-20',
-    unit: '1. 다항식의 연산',
-    pageStart: 10,
-    pageEnd: 29,
-    understanding: 'MEDIUM',
-    memo: '계산 실수가 조금 있음.',
-  },
-])
+const textbooks = ref([])
+const progressHistory = ref([])
+const studentSubjects = ref([])
 
 // Forms
 const textbookForm = ref({
@@ -89,18 +37,8 @@ const progressForm = ref({
 })
 
 // Computed
-const currentStudentTextbooks = computed(() => {
-  return textbooks.value.filter((t) => t.studentId === selectedStudentId.value)
-})
-
 const currentTextbook = computed(() => {
   return textbooks.value.find((t) => t.id === selectedTextbookId.value)
-})
-
-const currentProgressList = computed(() => {
-  return progressHistory.value
-    .filter((p) => p.textbookId === selectedTextbookId.value)
-    .sort((a, b) => new Date(b.date) - new Date(a.date))
 })
 
 const progressPercentage = (textbook) => {
@@ -115,24 +53,62 @@ const fetchStudents = async () => {
     const response = await api.get(`/students?userId=${authStore.user.userId}`)
     students.value = response.data.data
     if (students.value.length > 0) {
-      selectedStudentId.value = students.value[0].studentId
+      selectStudent(students.value[0].studentId)
     }
   } catch (error) {
     console.error('Failed to fetch students:', error)
   }
 }
 
+const fetchStudentSubjects = async (studentId) => {
+  try {
+    const response = await api.get(`/api/student-subject/${studentId}/${authStore.user.userId}`)
+    studentSubjects.value = response.data.data || []
+  } catch (error) {
+    console.error('Failed to fetch student subjects:', error)
+    studentSubjects.value = []
+  }
+}
+
+const fetchTextbooks = async (studentId) => {
+  try {
+    const response = await api.get(`/textbooks`, {
+      params: {
+        studentId,
+        userId: authStore.user.userId,
+      },
+    })
+    textbooks.value = response.data.data || []
+  } catch (error) {
+    console.error('Failed to fetch textbooks:', error)
+  }
+}
+
+const fetchProgressHistory = async (textbookId) => {
+  try {
+    const response = await api.get(`/progress/textbook/${textbookId}`)
+    progressHistory.value = response.data.data || []
+  } catch (error) {
+    console.error('Failed to fetch progress history:', error)
+  }
+}
+
 const selectStudent = (id) => {
   selectedStudentId.value = id
   selectedTextbookId.value = null
+  progressHistory.value = []
+  fetchStudentSubjects(id)
+  fetchTextbooks(id)
 }
 
 const selectTextbook = (id) => {
   selectedTextbookId.value = id
+  fetchProgressHistory(id)
 }
 
 const openTextbookModal = () => {
-  textbookForm.value = { title: '', subject: 'MATH', totalUnit: '' }
+  const defaultSubject = studentSubjects.value.length > 0 ? studentSubjects.value[0].subject : null
+  textbookForm.value = { title: '', subject: defaultSubject, totalUnit: '' }
   showTextbookModal.value = true
 }
 
@@ -148,40 +124,58 @@ const openProgressModal = () => {
   showProgressModal.value = true
 }
 
-const saveTextbook = () => {
-  // TODO: API Call
-  const newId = Math.max(...textbooks.value.map((t) => t.id)) + 1
-  textbooks.value.push({
-    id: newId,
-    studentId: selectedStudentId.value,
-    ...textbookForm.value,
-    currentUnit: 0,
-    status: 'IN_PROGRESS',
-    lastUpdate: new Date().toISOString().split('T')[0],
-  })
-  showTextbookModal.value = false
-  modalStore.alert('교재가 추가되었습니다.')
+const saveTextbook = async () => {
+  try {
+    await api.post('/textbooks', {
+      studentId: selectedStudentId.value,
+      userId: authStore.user.userId,
+      title: textbookForm.value.title,
+      subject: getSubjectName(textbookForm.value.subject),
+      totalUnit: textbookForm.value.totalUnit,
+    })
+
+    await fetchTextbooks(selectedStudentId.value)
+    showTextbookModal.value = false
+    modalStore.alert('교재가 추가되었습니다.')
+  } catch (error) {
+    console.error('Failed to save textbook:', error)
+    modalStore.alert('교재 추가에 실패했습니다.')
+  }
 }
 
-const saveProgress = () => {
-  // TODO: API Call
-  const newId = Math.max(...progressHistory.value.map((p) => p.id), 0) + 1
-  progressHistory.value.unshift({
-    id: newId,
-    textbookId: selectedTextbookId.value,
-    ...progressForm.value,
-    date: progressForm.value.date.split('T')[0],
-  })
+const saveProgress = async () => {
+  try {
+    // Convert local datetime string to ISO string with offset
+    const toLocalISOString = (dateStr) => {
+      if (!dateStr) return null
+      const date = new Date(dateStr)
+      const offset = date.getTimezoneOffset() * 60000
+      const localDate = new Date(date.getTime() - offset)
+      return localDate.toISOString().slice(0, 19)
+    }
 
-  // Update textbook current unit (simple logic for demo)
-  const textbook = textbooks.value.find((t) => t.id === selectedTextbookId.value)
-  if (textbook) {
-    textbook.currentUnit += 1
-    textbook.lastUpdate = new Date().toISOString().split('T')[0]
+    await api.post('/progress', {
+      textbookId: selectedTextbookId.value,
+      studentId: selectedStudentId.value,
+      userId: authStore.user.userId,
+      lessonDate: toLocalISOString(progressForm.value.date),
+      unit: progressForm.value.unit,
+      pageStart: progressForm.value.pageStart,
+      pageEnd: progressForm.value.pageEnd,
+      understanding: progressForm.value.understanding,
+      memo: progressForm.value.memo,
+    })
+
+    await fetchProgressHistory(selectedTextbookId.value)
+    // Refresh textbooks to update current unit count
+    await fetchTextbooks(selectedStudentId.value)
+
+    showProgressModal.value = false
+    modalStore.alert('진도가 기록되었습니다.')
+  } catch (error) {
+    console.error('Failed to save progress:', error)
+    modalStore.alert('진도 기록에 실패했습니다.')
   }
-
-  showProgressModal.value = false
-  modalStore.alert('진도가 기록되었습니다.')
 }
 
 const getUnderstandingLabel = (level) => {
@@ -237,14 +231,14 @@ onMounted(() => {
 
           <div class="textbook-grid">
             <div
-              v-for="textbook in currentStudentTextbooks"
+              v-for="textbook in textbooks"
               :key="textbook.id"
               class="textbook-card card clickable"
               :class="{ active: selectedTextbookId === textbook.id }"
               @click="selectTextbook(textbook.id)"
             >
               <div class="textbook-header">
-                <span class="subject-badge">{{ textbook.subject }}</span>
+                <span class="subject-badge">{{ getSubjectLabel(textbook.subject) }}</span>
                 <span
                   class="status-dot"
                   :class="{ completed: textbook.status === 'COMPLETED' }"
@@ -263,7 +257,7 @@ onMounted(() => {
               <p class="last-update">최근 기록: {{ textbook.lastUpdate }}</p>
             </div>
 
-            <div v-if="currentStudentTextbooks.length === 0" class="empty-textbook">
+            <div v-if="textbooks.length === 0" class="empty-textbook">
               <p>등록된 교재가 없습니다.</p>
             </div>
           </div>
@@ -276,13 +270,13 @@ onMounted(() => {
             </div>
 
             <div class="timeline">
-              <div v-for="record in currentProgressList" :key="record.id" class="timeline-item">
+              <div v-for="record in progressHistory" :key="record.progressId" class="timeline-item">
                 <div class="timeline-date">
-                  <span class="date">{{ formatDate(record.date) }}</span>
+                  <span class="date">{{ formatDate(record.lessonDate) }}</span>
                 </div>
                 <div class="timeline-content card">
                   <div class="record-header">
-                    <span class="unit-badge">{{ record.unit }}</span>
+                    <span class="unit-badge">{{ record.lessonCount }}회차 - {{ record.unit }}</span>
                     <span
                       class="understanding-badge"
                       :style="{
@@ -300,13 +294,13 @@ onMounted(() => {
                 </div>
               </div>
 
-              <div v-if="currentProgressList.length === 0" class="empty-history">
+              <div v-if="progressHistory.length === 0" class="empty-history">
                 <p>아직 기록된 진도가 없습니다.</p>
               </div>
             </div>
           </div>
 
-          <div v-else-if="currentStudentTextbooks.length > 0" class="select-guide">
+          <div v-else-if="textbooks.length > 0" class="select-guide">
             <p>👆 진도 기록을 확인할 교재를 선택해주세요.</p>
           </div>
         </div>
@@ -320,12 +314,17 @@ onMounted(() => {
         <form @submit.prevent="saveTextbook">
           <div class="form-group">
             <label>과목</label>
-            <select v-model="textbookForm.subject">
-              <option value="MATH">수학</option>
-              <option value="ENGLISH">영어</option>
-              <option value="KOREAN">국어</option>
-              <option value="SCIENCE">과학</option>
-              <option value="SOCIAL">사회</option>
+            <select v-model="textbookForm.subject" required>
+              <option v-if="studentSubjects.length === 0" disabled value="">
+                등록된 과목이 없습니다
+              </option>
+              <option
+                v-for="subject in studentSubjects"
+                :key="subject.studentSubjectId"
+                :value="subject.subject"
+              >
+                {{ getSubjectLabel(subject.subject) }}
+              </option>
             </select>
           </div>
           <div class="form-group">
@@ -340,7 +339,9 @@ onMounted(() => {
             <button type="button" class="btn btn-secondary" @click="showTextbookModal = false">
               취소
             </button>
-            <button type="submit" class="btn btn-primary">추가</button>
+            <button type="submit" class="btn btn-primary" :disabled="studentSubjects.length === 0">
+              추가
+            </button>
           </div>
         </form>
       </div>
@@ -654,5 +655,162 @@ onMounted(() => {
   align-items: center;
   gap: 0.5rem;
   cursor: pointer;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .layout-container {
+    flex-direction: column;
+  }
+
+  .student-sidebar {
+    width: 100%;
+    max-height: 200px;
+    overflow-y: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .student-list {
+    display: flex;
+    gap: 0.5rem;
+    overflow-x: auto;
+    padding-bottom: 0.5rem;
+  }
+
+  .student-item {
+    flex-shrink: 0;
+    min-width: 150px;
+  }
+
+  .textbook-grid {
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .progress-view {
+    height: auto;
+    min-height: calc(100vh - 80px);
+  }
+
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .section-header h2,
+  .section-header h3 {
+    font-size: 1.25rem;
+  }
+
+  .textbook-grid {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .textbook-card {
+    padding: 1rem;
+  }
+
+  .timeline {
+    padding-left: 0.5rem;
+    margin-left: 0.5rem;
+  }
+
+  .timeline-item::before {
+    left: -1.25rem;
+  }
+
+  .select-guide {
+    padding: 2rem 1rem;
+  }
+
+  .modal-content {
+    margin: 1rem;
+    padding: 1.5rem;
+  }
+
+  .form-row {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .radio-group {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .student-sidebar {
+    padding: 1rem;
+  }
+
+  .student-item {
+    min-width: 120px;
+    padding: 0.5rem;
+  }
+
+  .student-avatar {
+    width: 32px;
+    height: 32px;
+    font-size: 0.9rem;
+  }
+
+  .student-info .name {
+    font-size: 0.9rem;
+  }
+
+  .student-info .school {
+    font-size: 0.75rem;
+  }
+
+  .main-content {
+    padding-right: 0;
+  }
+
+  .section-header h2,
+  .section-header h3 {
+    font-size: 1.1rem;
+  }
+
+  .btn {
+    padding: 0.6rem 1rem;
+    font-size: 0.9rem;
+  }
+
+  .textbook-card h3 {
+    font-size: 1rem;
+  }
+
+  .subject-badge {
+    font-size: 0.7rem;
+    padding: 0.15rem 0.4rem;
+  }
+
+  .progress-text {
+    font-size: 0.8rem;
+  }
+
+  .timeline-content {
+    padding: 0.75rem;
+  }
+
+  .unit-badge {
+    font-size: 0.85rem;
+  }
+
+  .understanding-badge {
+    font-size: 0.75rem;
+    padding: 0.15rem 0.5rem;
+  }
+
+  .empty-state,
+  .empty-textbook,
+  .empty-history {
+    font-size: 0.9rem;
+  }
 }
 </style>
