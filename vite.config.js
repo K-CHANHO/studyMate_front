@@ -31,6 +31,12 @@ export default defineConfig({
       '/students': {
         target: 'http://localhost:8080',
         changeOrigin: true,
+        bypass: (req, res, options) => {
+          const accept = req.headers.accept
+          if (accept && accept.includes('text/html')) {
+            return req.url
+          }
+        },
       },
       '/schedules': {
         target: 'http://localhost:8080',
@@ -51,6 +57,12 @@ export default defineConfig({
       '/attendance': {
         target: 'http://localhost:8080',
         changeOrigin: true,
+        bypass: (req, res, options) => {
+          const accept = req.headers.accept
+          if (accept && accept.includes('text/html')) {
+            return req.url
+          }
+        },
       },
     },
   },

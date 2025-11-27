@@ -1,7 +1,9 @@
 import axios from 'axios'
 
+const baseURL = import.meta.env.VITE_API_URL || ''
+
 const api = axios.create({
-  baseURL: '', // Proxy handles the host
+  baseURL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -42,7 +44,7 @@ api.interceptors.response.use(
 
         // Call refresh endpoint
         const response = await axios.post(
-          '/jwt/refresh',
+          `${baseURL}/jwt/refresh`,
           {},
           {
             headers: {
