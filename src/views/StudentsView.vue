@@ -26,15 +26,12 @@ const subjectForm = ref({
 })
 const editingSubjectId = ref(null)
 
-const SUBJECTS = {
-  KOREAN: '국어',
-  ENGLISH: '영어',
-  MATH: '수학',
-}
+import { getLabel, getName } from '@/utils/enumUtils'
+import { SUBJECTS } from '@/utils/subjectUtils'
 
 const availableSubjects = computed(() => {
   if (!selectedStudent.value || !studentSubjects.value) return []
-  const existingSubjects = studentSubjects.value.map((s) => s.subject)
+  const existingSubjects = studentSubjects.value.map((s) => getName(s.subject))
   return Object.entries(SUBJECTS)
     .filter(([key]) => !existingSubjects.includes(key))
     .map(([key, label]) => ({ value: key, label }))
@@ -330,7 +327,7 @@ onMounted(() => {
                 :key="subject.studentSubjectId"
                 class="subject-badge-inline"
               >
-                {{ SUBJECTS[subject.subject] }}
+                {{ getLabel(subject.subject) }}
               </span>
               <span class="fee-inline">₩{{ formatPrice(student.totalFee) }}</span>
             </div>
