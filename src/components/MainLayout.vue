@@ -43,6 +43,11 @@ router.afterEach(() => {
           학생 관리
         </RouterLink>
 
+        <RouterLink to="/schedule" class="nav-item" active-class="active">
+          <span class="icon">📅</span>
+          수업 일정
+        </RouterLink>
+
         <!-- Class Management Submenu -->
         <div class="nav-group">
           <button class="nav-item nav-group-toggle" @click="isClassMenuOpen = !isClassMenuOpen">
@@ -67,11 +72,6 @@ router.afterEach(() => {
             </RouterLink>
           </div>
         </div>
-
-        <RouterLink to="/schedule" class="nav-item" active-class="active">
-          <span class="icon">📅</span>
-          수업 일정
-        </RouterLink>
         <RouterLink to="/settings" class="nav-item" active-class="active">
           <span class="icon">⚙️</span>
           설정

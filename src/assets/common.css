@@ -20,6 +20,46 @@
   animation: modal-slide-up 0.3s ease-out;
 }
 
+/* 스크롤 가능한 모달 */
+.modal-scrollable {
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+  padding: 0;
+  overflow: hidden;
+}
+
+.modal-header-fixed {
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.modal-body-scrollable {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.5rem;
+  min-height: 0; /* flex item이 스크롤 가능하도록 */
+}
+
+.modal-body-scrollable::-webkit-scrollbar {
+  width: 8px;
+}
+
+.modal-body-scrollable::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.modal-body-scrollable::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.modal-body-scrollable::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
 @keyframes modal-slide-up {
   from {
     opacity: 0;

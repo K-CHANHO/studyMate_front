@@ -463,7 +463,7 @@ onMounted(() => {
               class="subject-item"
             >
               <div class="subject-info">
-                <span class="subject-name">{{ SUBJECTS[subject.subject] }}</span>
+                <span class="subject-name">{{ getLabel(subject.subject, SUBJECTS) }}</span>
                 <span class="subject-price">₩{{ formatPrice(subject.price) }}</span>
               </div>
               <div class="subject-actions">
@@ -528,7 +528,7 @@ onMounted(() => {
             >
               <option value="">과목 선택</option>
               <option v-if="editingSubjectId" :value="subjectForm.subject">
-                {{ SUBJECTS[subjectForm.subject] }}
+                {{ getLabel(subjectForm.subject, SUBJECTS) }}
               </option>
               <option
                 v-else

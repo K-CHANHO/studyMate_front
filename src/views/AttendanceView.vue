@@ -4,6 +4,14 @@ import { useAuthStore } from '@/stores/auth'
 import { useModalStore } from '@/stores/modal'
 import api from '@/api'
 import { toDateTimeLocal, toLocalISOString, formatTime } from '@/utils/dateUtils'
+import { getLabel, getName } from '@/utils/enumUtils'
+import { SUBJECTS } from '@/utils/subjectUtils'
+import {
+  ATTENDANCE_STATUS,
+  ATTENDANCE_STATUS_COLORS,
+  getAttendanceStatusName,
+  getAttendanceStatusColors,
+} from '@/utils/attendanceStatusUtils'
 
 const authStore = useAuthStore()
 const modalStore = useModalStore()
@@ -20,12 +28,7 @@ const attendanceForm = ref({
   memo: '',
 })
 
-const ATTENDANCE_STATUS = {
-  ATTENDED: { label: '출석', color: '#10b981', bgColor: '#d1fae5' },
-  ABSENT: { label: '결석', color: '#ef4444', bgColor: '#fee2e2' },
-  LATE: { label: '지각', color: '#f59e0b', bgColor: '#fef3c7' },
-  EARLY_LEAVE: { label: '조퇴', color: '#8b5cf6', bgColor: '#ede9fe' },
-}
+// ATTENDANCE_STATUS는 utils에서 import
 
 const todaySchedules = computed(() => {
   const today = new Date()
@@ -100,18 +103,6 @@ const getStudentName = (studentId) => {
   return student ? student.name : studentId
 }
 
-const getSubjectLabel = (subject) => {
-  const map = {
-    KOREAN: '국어',
-    MATH: '수학',
-    ENGLISH: '영어',
-    SCIENCE: '과학',
-    SOCIAL: '사회',
-    HISTORY: '역사',
-    OTHER: '기타',
-  }
-  return map[subject] || subject
-}
 
 const openAttendanceModal = (schedule) => {
   selectedSchedule.value = schedule
@@ -120,7 +111,7 @@ const openAttendanceModal = (schedule) => {
     // Edit existing attendance
     const attendance = schedule.attendance
     attendanceForm.value = {
-      status: attendance.status,
+      status: getAttendanceStatusName(attendance.status),
       checkInTime: attendance.checkInTime
         ? toDateTimeLocal(new Date(attendance.checkInTime))
         : toDateTimeLocal(new Date()),
@@ -161,7 +152,7 @@ const handleSubmitAttendance = async () => {
       scheduleId: selectedSchedule.value.scheduleId,
       studentId: selectedSchedule.value.studentId,
       userId: authStore.user.userId,
-      status: attendanceForm.value.status,
+      status: getAttendanceStatusName(attendanceForm.value.status),
       checkInTime: toLocalISOString(attendanceForm.value.checkInTime),
       checkOutTime: toLocalISOString(attendanceForm.value.checkOutTime),
       memo: attendanceForm.value.memo,
@@ -200,7 +191,7 @@ const handleEndClass = async (schedule) => {
     const checkOutTime = toLocalISOString(new Date())
 
     await api.put(`/attendance/${schedule.attendance.id}`, {
-      status: schedule.attendance.status,
+      status: getAttendanceStatusName(schedule.attendance.status),
       checkInTime: schedule.attendance.checkInTime,
       checkOutTime: checkOutTime,
       memo: schedule.attendance.memo,
@@ -240,7 +231,7 @@ onMounted(async () => {
         <div class="schedule-header">
           <div class="schedule-info">
             <h3>{{ getStudentName(schedule.studentId) }}</h3>
-            <span class="subject-badge">{{ getSubjectLabel(schedule.subject) }}</span>
+            <span class="subject-badge">{{ getLabel(schedule.subject, SUBJECTS) }}</span>
           </div>
           <div class="schedule-time">
             <span class="icon">🕐</span>
@@ -258,12 +249,9 @@ onMounted(async () => {
             <div class="status-info">
               <span
                 class="status-badge"
-                :style="{
-                  color: ATTENDANCE_STATUS[schedule.attendance.status].color,
-                  backgroundColor: ATTENDANCE_STATUS[schedule.attendance.status].bgColor,
-                }"
+                :style="getAttendanceStatusColors(schedule.attendance.status)"
               >
-                {{ ATTENDANCE_STATUS[schedule.attendance.status].label }}
+                {{ getLabel(schedule.attendance.status, ATTENDANCE_STATUS) }}
               </span>
               <span v-if="schedule.attendance.checkInTime" class="time-info">
                 {{ formatTime(schedule.attendance.checkInTime) }}
@@ -300,30 +288,39 @@ onMounted(async () => {
 
     <!-- Attendance Modal -->
     <div v-if="showAttendanceModal" class="modal-overlay" @click.self="closeAttendanceModal">
-      <div class="modal-content">
-        <div class="modal-header">
+      <div class="modal-content modal-scrollable">
+        <div class="modal-header-fixed">
           <h3 class="modal-title">출석 체크</h3>
         </div>
 
-        <form @submit.prevent="handleSubmitAttendance">
+        <div class="modal-body-scrollable">
+          <form @submit.prevent="handleSubmitAttendance">
           <div class="form-group">
             <label>출석 상태 <span class="required">*</span></label>
             <div class="status-buttons">
               <button
-                v-for="(info, status) in ATTENDANCE_STATUS"
+                v-for="(label, status) in ATTENDANCE_STATUS"
                 :key="status"
                 type="button"
                 class="status-btn"
-                :class="{ active: attendanceForm.status === status }"
+                :class="{ active: getAttendanceStatusName(attendanceForm.status) === status }"
                 :style="{
                   borderColor:
-                    attendanceForm.status === status ? info.color : 'var(--color-border)',
-                  backgroundColor: attendanceForm.status === status ? info.bgColor : 'transparent',
-                  color: attendanceForm.status === status ? info.color : 'var(--color-text-main)',
+                    getAttendanceStatusName(attendanceForm.status) === status
+                      ? ATTENDANCE_STATUS_COLORS[status].color
+                      : 'var(--color-border)',
+                  backgroundColor:
+                    getAttendanceStatusName(attendanceForm.status) === status
+                      ? ATTENDANCE_STATUS_COLORS[status].bgColor
+                      : 'transparent',
+                  color:
+                    getAttendanceStatusName(attendanceForm.status) === status
+                      ? ATTENDANCE_STATUS_COLORS[status].color
+                      : 'var(--color-text-main)',
                 }"
                 @click="attendanceForm.status = status"
               >
-                {{ info.label }}
+                {{ label }}
               </button>
             </div>
           </div>
@@ -347,13 +344,14 @@ onMounted(async () => {
             ></textarea>
           </div>
 
-          <div class="modal-actions">
-            <button type="button" class="btn btn-secondary btn-full" @click="closeAttendanceModal">
-              취소
-            </button>
-            <button type="submit" class="btn btn-primary btn-full">저장</button>
-          </div>
-        </form>
+            <div class="modal-actions" style="margin-top: 0;">
+              <button type="button" class="btn btn-secondary btn-full" @click="closeAttendanceModal">
+                취소
+              </button>
+              <button type="submit" class="btn btn-primary btn-full">저장</button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   </div>

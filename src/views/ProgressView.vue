@@ -35,6 +35,12 @@ const progressForm = ref({
   pageEnd: '',
   understanding: 'MEDIUM',
   memo: '',
+  homeworks: [], // 숙제 리스트
+})
+
+const homeworkForm = ref({
+  content: '',
+  dueDate: '',
 })
 
 // Computed
@@ -121,8 +127,30 @@ const openProgressModal = () => {
     pageEnd: '',
     understanding: 'MEDIUM',
     memo: '',
+    homeworks: [],
+  }
+  homeworkForm.value = {
+    content: '',
+    dueDate: '',
   }
   showProgressModal.value = true
+}
+
+const addHomework = () => {
+  if (homeworkForm.value.content.trim()) {
+    progressForm.value.homeworks.push({
+      content: homeworkForm.value.content,
+      dueDate: homeworkForm.value.dueDate || null,
+    })
+    homeworkForm.value = {
+      content: '',
+      dueDate: '',
+    }
+  }
+}
+
+const removeHomework = (index) => {
+  progressForm.value.homeworks.splice(index, 1)
 }
 
 const saveTextbook = async () => {
@@ -155,6 +183,12 @@ const saveProgress = async () => {
       return localDate.toISOString().slice(0, 19)
     }
 
+    // Convert homework due dates
+    const homeworks = progressForm.value.homeworks.map((hw) => ({
+      content: hw.content,
+      dueDate: hw.dueDate ? toLocalISOString(hw.dueDate) : null,
+    }))
+
     await api.post('/progress', {
       textbookId: selectedTextbookId.value,
       studentId: selectedStudentId.value,
@@ -165,6 +199,7 @@ const saveProgress = async () => {
       pageEnd: progressForm.value.pageEnd,
       understanding: progressForm.value.understanding,
       memo: progressForm.value.memo,
+      homeworks: homeworks.length > 0 ? homeworks : null,
     })
 
     await fetchProgressHistory(selectedTextbookId.value)
@@ -176,6 +211,28 @@ const saveProgress = async () => {
   } catch (error) {
     console.error('Failed to save progress:', error)
     modalStore.alert('진도 기록에 실패했습니다.')
+  }
+}
+
+const toggleHomeworkComplete = async (homeworkId, currentStatus) => {
+  try {
+    await api.put(
+      `/homework/${homeworkId}`,
+      {
+        isCompleted: !currentStatus,
+      },
+      {
+        headers: {
+          UserId: authStore.user.userId,
+        },
+      }
+    )
+
+    // Refresh progress history to update UI
+    await fetchProgressHistory(selectedTextbookId.value)
+  } catch (error) {
+    console.error('Failed to update homework:', error)
+    modalStore.alert('숙제 상태 변경에 실패했습니다.')
   }
 }
 
@@ -283,6 +340,44 @@ onMounted(() => {
                   <div class="record-body">
                     <p class="pages">p.{{ record.pageStart }} ~ p.{{ record.pageEnd }}</p>
                     <p v-if="record.memo" class="memo">{{ record.memo }}</p>
+
+                    <!-- 숙제 섹션 -->
+                    <div v-if="record.homeworks && record.homeworks.length > 0" class="homework-section-card">
+                      <div class="homework-header">
+                        <span class="homework-title">📝 숙제 ({{ record.homeworks.length }})</span>
+                      </div>
+                      <div class="homework-items">
+                        <div
+                          v-for="homework in record.homeworks"
+                          :key="homework.homeworkId"
+                          class="homework-item-card"
+                          :class="{ completed: homework.isCompleted }"
+                        >
+                          <div class="homework-item-content">
+                            <button
+                              class="homework-checkbox"
+                              :class="{ checked: homework.isCompleted }"
+                              @click="toggleHomeworkComplete(homework.homeworkId, homework.isCompleted)"
+                              :title="homework.isCompleted ? '완료 취소' : '완료 처리'"
+                            >
+                              <span v-if="homework.isCompleted">✓</span>
+                            </button>
+                            <span class="homework-text" :class="{ completed: homework.isCompleted }">
+                              {{ homework.content }}
+                            </span>
+                          </div>
+                          <div v-if="homework.dueDate" class="homework-meta">
+                            <span class="homework-due">기한: {{ formatDate(homework.dueDate) }}</span>
+                            <span
+                              v-if="homework.completedAt"
+                              class="homework-completed"
+                            >
+                              완료: {{ formatDate(homework.completedAt) }}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -342,9 +437,12 @@ onMounted(() => {
 
     <!-- Progress Modal -->
     <div v-if="showProgressModal" class="modal-overlay" @click.self="showProgressModal = false">
-      <div class="modal-content">
-        <h3>진도 기록하기</h3>
-        <form @submit.prevent="saveProgress">
+      <div class="modal-content modal-scrollable">
+        <div class="modal-header-fixed">
+          <h3>진도 기록하기</h3>
+        </div>
+        <div class="modal-body-scrollable">
+          <form @submit.prevent="saveProgress">
           <div class="form-group">
             <label>날짜</label>
             <input v-model="progressForm.date" type="datetime-local" required />
@@ -366,29 +464,84 @@ onMounted(() => {
           <div class="form-group">
             <label>이해도</label>
             <div class="radio-group">
-              <label
-                ><input type="radio" v-model="progressForm.understanding" value="HIGH" /> 상</label
-              >
-              <label
-                ><input type="radio" v-model="progressForm.understanding" value="MEDIUM" />
-                중</label
-              >
-              <label
-                ><input type="radio" v-model="progressForm.understanding" value="LOW" /> 하</label
-              >
+              <label :class="{ 'radio-checked': progressForm.understanding === 'HIGH' }">
+                <input type="radio" v-model="progressForm.understanding" value="HIGH" />
+                <span>상</span>
+              </label>
+              <label :class="{ 'radio-checked': progressForm.understanding === 'MEDIUM' }">
+                <input type="radio" v-model="progressForm.understanding" value="MEDIUM" />
+                <span>중</span>
+              </label>
+              <label :class="{ 'radio-checked': progressForm.understanding === 'LOW' }">
+                <input type="radio" v-model="progressForm.understanding" value="LOW" />
+                <span>하</span>
+              </label>
             </div>
           </div>
           <div class="form-group">
             <label>메모</label>
             <textarea v-model="progressForm.memo" rows="3" placeholder="특이사항 입력"></textarea>
           </div>
-          <div class="modal-actions">
-            <button type="button" class="btn btn-secondary" @click="showProgressModal = false">
-              취소
-            </button>
-            <button type="submit" class="btn btn-primary">저장</button>
+
+          <!-- 숙제 섹션 -->
+          <div class="form-group homework-section">
+            <div class="section-header-small">
+              <label>📝 숙제</label>
+              <button type="button" class="btn btn-sm btn-outline" @click.prevent="addHomework">
+                + 추가
+              </button>
+            </div>
+
+            <!-- 숙제 입력 폼 -->
+            <div v-if="progressForm.homeworks.length < 5" class="homework-input-group">
+              <input
+                v-model="homeworkForm.content"
+                type="text"
+                placeholder="숙제 내용을 입력하세요"
+                @keyup.enter="addHomework"
+              />
+              <input
+                v-model="homeworkForm.dueDate"
+                type="datetime-local"
+                placeholder="제출 기한 (선택)"
+              />
+              <button type="button" class="btn btn-sm btn-primary" @click="addHomework">
+                추가
+              </button>
+            </div>
+
+            <!-- 숙제 리스트 -->
+            <div v-if="progressForm.homeworks.length > 0" class="homework-list">
+              <div
+                v-for="(homework, index) in progressForm.homeworks"
+                :key="index"
+                class="homework-item"
+              >
+                <span class="homework-content">{{ homework.content }}</span>
+                <span v-if="homework.dueDate" class="homework-due-date">
+                  {{ formatDate(homework.dueDate) }}
+                </span>
+                <button
+                  type="button"
+                  class="btn-icon"
+                  @click="removeHomework(index)"
+                  title="삭제"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+            <p v-else class="help-text">숙제를 추가하려면 위 입력란에 내용을 입력하고 추가 버튼을 클릭하세요.</p>
           </div>
-        </form>
+
+            <div class="modal-actions">
+              <button type="button" class="btn btn-secondary" @click="showProgressModal = false">
+                취소
+              </button>
+              <button type="submit" class="btn btn-primary">저장</button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   </div>
@@ -648,6 +801,7 @@ onMounted(() => {
 .radio-group {
   display: flex;
   gap: 1.5rem;
+  flex-wrap: wrap;
 }
 
 .radio-group label {
@@ -655,6 +809,69 @@ onMounted(() => {
   align-items: center;
   gap: 0.5rem;
   cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.radio-group label input[type="radio"] {
+  margin: 0;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: var(--color-primary);
+}
+
+.radio-group label span {
+  user-select: none;
+  pointer-events: none;
+}
+
+/* Modal 스타일 */
+.modal-scrollable {
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+  overflow: hidden;
+}
+
+.modal-header-fixed {
+  padding: 1.5rem 1.5rem 1rem;
+  border-bottom: 1px solid #e2e8f0;
+  flex-shrink: 0;
+  background: white;
+}
+
+.modal-header-fixed h3 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--color-text-main);
+}
+
+.modal-body-scrollable {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.5rem;
+  min-height: 0; /* flex item이 스크롤 가능하도록 */
+}
+
+.modal-body-scrollable::-webkit-scrollbar {
+  width: 8px;
+}
+
+.modal-body-scrollable::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.modal-body-scrollable::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.modal-body-scrollable::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
 /* Responsive Design */
@@ -729,6 +946,35 @@ onMounted(() => {
 
   .modal-content {
     margin: 1rem;
+    padding: 0;
+    max-height: calc(100vh - 2rem);
+  }
+
+  .modal-scrollable {
+    max-height: 95vh;
+  }
+
+  .modal-header-fixed {
+    padding: 1rem;
+  }
+
+  .modal-header-fixed h3 {
+    font-size: 1.25rem;
+  }
+
+  .modal-body-scrollable {
+    padding: 1rem;
+  }
+
+  .modal-header-fixed h3 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+  }
+
+  .modal-body-scrollable {
+    flex: 1;
+    overflow-y: auto;
     padding: 1.5rem;
   }
 
@@ -738,8 +984,14 @@ onMounted(() => {
   }
 
   .radio-group {
-    flex-direction: column;
-    gap: 0.75rem;
+    flex-direction: row;
+    gap: 1rem;
+    justify-content: flex-start;
+  }
+
+  .radio-group label {
+    flex: 0 0 auto;
+    min-width: auto;
   }
 }
 
@@ -751,6 +1003,38 @@ onMounted(() => {
   .student-item {
     min-width: 120px;
     padding: 0.5rem;
+  }
+
+  .radio-group {
+    gap: 0.5rem;
+    justify-content: space-between;
+  }
+
+  .radio-group label {
+    flex: 1;
+    justify-content: center;
+    padding: 0.75rem 0.5rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    background: white;
+    transition: all 0.2s;
+    min-width: 0;
+  }
+
+  .radio-group label:hover {
+    background: #f8fafc;
+    border-color: var(--color-primary);
+  }
+
+  .radio-group label input[type="radio"]:checked + span {
+    color: var(--color-primary);
+    font-weight: 600;
+  }
+
+  /* :has() 선택자 대신 클래스 기반 접근 (더 나은 호환성) */
+  .radio-group label.radio-checked {
+    background: #eef2ff;
+    border-color: var(--color-primary);
   }
 
   .student-avatar {
@@ -811,6 +1095,242 @@ onMounted(() => {
   .empty-textbook,
   .empty-history {
     font-size: 0.9rem;
+  }
+}
+
+/* 숙제 관련 스타일 */
+.homework-section {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.section-header-small {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.section-header-small label {
+  font-weight: 600;
+  color: var(--color-text-main);
+}
+
+.btn-sm {
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+}
+
+.btn-outline {
+  background: transparent;
+  border: 1px solid var(--color-primary);
+  color: var(--color-primary);
+}
+
+.btn-outline:hover {
+  background: var(--color-primary);
+  color: white;
+}
+
+.homework-input-group {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.homework-input-group input[type='text'] {
+  flex: 1;
+  padding: 0.5rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.homework-input-group input[type='datetime-local'] {
+  width: 180px;
+  padding: 0.5rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.homework-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.homework-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background-color: #f8fafc;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+}
+
+.homework-content {
+  flex: 1;
+  font-size: 0.9rem;
+  color: var(--color-text-main);
+}
+
+.homework-due-date {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  padding: 0.25rem 0.5rem;
+  background-color: white;
+  border-radius: 4px;
+}
+
+.btn-icon {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 1.2rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.btn-icon:hover {
+  background-color: #fee2e2;
+  color: #dc2626;
+}
+
+.help-text {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+  margin-top: 0.5rem;
+}
+
+/* 진도 기록 카드 내 숙제 스타일 */
+.homework-section-card {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.homework-header {
+  margin-bottom: 0.75rem;
+}
+
+.homework-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-text-main);
+}
+
+.homework-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.homework-item-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background-color: #f8fafc;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  transition: all 0.2s;
+}
+
+.homework-item-card.completed {
+  background-color: #f0fdf4;
+  border-color: #86efac;
+}
+
+.homework-item-content {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.homework-checkbox {
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  border: 2px solid #cbd5e1;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  color: white;
+  font-size: 0.75rem;
+  font-weight: bold;
+}
+
+.homework-checkbox:hover {
+  border-color: var(--color-primary);
+  background-color: #eef2ff;
+}
+
+.homework-checkbox.checked {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.homework-text {
+  flex: 1;
+  font-size: 0.9rem;
+  color: var(--color-text-main);
+  line-height: 1.4;
+}
+
+.homework-text.completed {
+  text-decoration: line-through;
+  color: var(--color-text-muted);
+}
+
+.homework-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-left: 2rem;
+  font-size: 0.8rem;
+}
+
+.homework-due {
+  color: var(--color-text-muted);
+}
+
+.homework-completed {
+  color: #059669;
+  font-weight: 500;
+}
+
+@media (max-width: 768px) {
+  .homework-input-group {
+    flex-direction: column;
+  }
+
+  .homework-input-group input[type='datetime-local'] {
+    width: 100%;
+  }
+
+  .homework-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .homework-due-date {
+    align-self: flex-start;
   }
 }
 </style>

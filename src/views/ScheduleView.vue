@@ -8,6 +8,8 @@ import listPlugin from '@fullcalendar/list'
 import { useAuthStore } from '@/stores/auth'
 import { useModalStore } from '@/stores/modal'
 import api from '@/api'
+import { getLabel, getName } from '@/utils/enumUtils'
+import { SUBJECTS } from '@/utils/subjectUtils'
 
 const authStore = useAuthStore()
 const calendarRef = ref(null)
@@ -46,7 +48,7 @@ const fetchEvents = async (info, successCallback, failureCallback) => {
 
       return {
         id: schedule.scheduleId,
-        title: `${studentName} - ${getSubjectLabel(schedule.subject)}`,
+        title: `${studentName} - ${getLabel(schedule.subject, SUBJECTS)}`,
         start: schedule.classDate,
         end: new Date(new Date(schedule.classDate).getTime() + 60 * 60 * 1000).toISOString(),
         extendedProps: {
@@ -56,7 +58,7 @@ const fetchEvents = async (info, successCallback, failureCallback) => {
           studentId: schedule.studentId,
           studentName: studentName,
           subject: schedule.subject,
-          subjectLabel: getSubjectLabel(schedule.subject),
+          subjectLabel: getLabel(schedule.subject, SUBJECTS),
         },
       }
     })
@@ -68,19 +70,6 @@ const fetchEvents = async (info, successCallback, failureCallback) => {
   }
 }
 
-const getSubjectLabel = (subject) => {
-  const map = {
-    KOREAN: '국어',
-    MATH: '수학',
-    ENGLISH: '영어',
-    SCIENCE: '과학',
-    SOCIAL: '사회',
-    HISTORY: '역사',
-    OTHER: '기타',
-  }
-  return map[subject] || subject
-}
-
 const calendarOptions = ref({
   plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin],
   initialView: window.innerWidth < 768 ? 'listWeek' : 'dayGridMonth',
@@ -89,6 +78,8 @@ const calendarOptions = ref({
   views: {
     dayGridMonth: {
       displayEventTime: false,
+      dayMaxEvents: false, // 일정 개수 제한 없음
+      moreLinkClick: 'popover', // 더보기 클릭 시 팝오버
     },
   },
   events: fetchEvents,
@@ -103,9 +94,9 @@ const calendarOptions = ref({
     }
     showDetailModal.value = true
   },
-  selectable: true,
+  selectable: false, // 자동 선택 비활성화 (수동으로 클래스 관리)
+  unselectAuto: false, // 자동 선택 해제 비활성화
   nowIndicator: true,
-  dayMaxEvents: true,
   height: 'auto',
   windowResize: (arg) => {
     if (arg.view.type === 'timeGridWeek' && window.innerWidth < 768) {
@@ -116,8 +107,43 @@ const calendarOptions = ref({
   dayCellContent: (arg) => {
     return { html: arg.dayNumberText.replace('일', '') }
   },
+  dayCellClassNames: (arg) => {
+    // 선택된 날짜에만 fc-day-selected 클래스 추가
+    if (selectedDate.value) {
+      // 날짜를 YYYY-MM-DD 형식으로 변환 (시간대 무시)
+      const cellDate = new Date(arg.date)
+      const cellYear = cellDate.getFullYear()
+      const cellMonth = String(cellDate.getMonth() + 1).padStart(2, '0')
+      const cellDay = String(cellDate.getDate()).padStart(2, '0')
+      const cellDateStr = `${cellYear}-${cellMonth}-${cellDay}`
+
+      if (cellDateStr === selectedDate.value) {
+        return ['fc-day-selected']
+      }
+    }
+    return []
+  },
+  dateClick: (arg) => {
+    // 날짜 클릭 시 선택된 날짜 저장 (YYYY-MM-DD 형식)
+    const clickedDate = arg.dateStr
+
+    if (selectedDate.value === clickedDate) {
+      // 같은 날짜를 다시 클릭하면 선택 해제
+      selectedDate.value = null
+    } else {
+      // 새 날짜 선택
+      selectedDate.value = clickedDate
+    }
+
+    // FullCalendar가 클래스를 자동으로 업데이트하도록 렌더링
+    if (calendarRef.value) {
+      calendarRef.value.getApi().render()
+    }
+  },
   datesSet: (arg) => {
     currentTitle.value = arg.view.title
+    // 뷰가 변경되면 선택된 날짜 초기화 (다른 달로 이동하면 선택 해제)
+    selectedDate.value = null
   },
   noEventsContent: '수업이 없습니다.',
 })
@@ -127,8 +153,11 @@ const currentTitle = ref('')
 const showModal = ref(false)
 const showDetailModal = ref(false)
 const selectedEvent = ref(null)
+const selectedDate = ref(null) // 선택된 날짜 저장
 const students = ref([])
 const modalStore = useModalStore()
+
+// watch는 제거 - dateClick에서 직접 처리
 
 const closeDetailModal = () => {
   showDetailModal.value = false
@@ -190,8 +219,10 @@ watch(
     if (newSubs.length > 0) {
       // If current subject is not in the new list, reset to first
       const current = form.value.subject
-      const exists = newSubs.find((s) => s.subject === current)
-      form.value.subject = exists ? current : newSubs[0].subject
+      const currentSubjectName = typeof current === 'string' ? current : getName(current)
+      const exists = newSubs.find((s) => getName(s.subject) === currentSubjectName)
+      // 첫 번째 과목을 기본값으로 설정
+      form.value.subject = exists ? current : getName(newSubs[0].subject)
     } else {
       form.value.subject = ''
     }
@@ -238,13 +269,18 @@ const isLoading = ref(false)
 
 const openCreateModal = () => {
   isEditing.value = false
-  // Set default date/time to now
-  const now = new Date()
-  const dateStr = now.toISOString().split('T')[0]
-  const timeStr = now.toTimeString().slice(0, 5)
+  // 선택된 날짜가 있으면 그 날짜 사용, 없으면 오늘 날짜 사용
+  let dateStr
+  if (selectedDate.value) {
+    dateStr = selectedDate.value
+  } else {
+    const now = new Date()
+    dateStr = now.toISOString().split('T')[0]
+  }
+  const timeStr = new Date().toTimeString().slice(0, 5)
 
   form.value = {
-    subject: 'KOREAN',
+    subject: '', // 과목은 학생 선택 후 첫 번째 과목으로 자동 설정됨
     studentId: students.value.length > 0 ? students.value[0].studentId : '',
     classDate: dateStr,
     classTime: timeStr,
@@ -422,28 +458,34 @@ const handleSubmit = async () => {
 
         <form @submit.prevent="handleSubmit">
           <div class="form-group">
-            <label>과목 <span class="required">*</span></label>
-            <select v-model="form.subject" required :disabled="isLoading">
-              <option
-                v-for="sub in studentSubjects"
-                :key="sub.studentSubjectId"
-                :value="sub.subject"
-              >
-                {{ getSubjectLabel(sub.subject) }}
-              </option>
-            </select>
-          </div>
-
-          <div class="form-group">
             <label>학생 <span class="required">*</span></label>
             <select v-model="form.studentId" required :disabled="isLoading">
-              <option value="" disabled>학생 선택</option>
               <option
                 v-for="student in students"
                 :key="student.studentId"
                 :value="student.studentId"
               >
                 {{ student.name }} ({{ student.studentId }})
+              </option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>과목 <span class="required">*</span></label>
+            <select
+              v-model="form.subject"
+              required
+              :disabled="isLoading || studentSubjects.length === 0"
+            >
+              <option v-if="studentSubjects.length === 0" value="" disabled>
+                학생을 먼저 선택해주세요
+              </option>
+              <option
+                v-for="sub in studentSubjects"
+                :key="sub.studentSubjectId"
+                :value="getName(sub.subject)"
+              >
+                {{ getLabel(sub.subject, SUBJECTS) }}
               </option>
             </select>
           </div>
@@ -658,6 +700,14 @@ const handleSubmit = async () => {
 :deep(.fc-theme-standard td),
 :deep(.fc-theme-standard th) {
   border-color: var(--color-border);
+  overflow: hidden !important;
+  position: relative !important;
+}
+
+/* 테이블 셀 내부 컨텐츠가 넘치지 않도록 */
+:deep(.fc-daygrid-day) {
+  overflow: hidden !important;
+  contain: layout style paint; /* CSS containment으로 성능 향상 및 격리 */
 }
 
 :deep(.fc-col-header-cell) {
@@ -670,27 +720,143 @@ const handleSubmit = async () => {
   border-bottom-width: 0;
 }
 
+/* 캘린더 그리드 셀 기본 스타일 */
+:deep(.fc-daygrid-day) {
+  position: relative !important;
+  text-align: left !important;
+  overflow: hidden !important;
+  isolation: isolate; /* 새로운 stacking context 생성 */
+}
+
 :deep(.fc-daygrid-day-frame) {
-  padding: 0.5rem;
+  padding: 0.25rem !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  height: 100%;
+  min-height: 80px;
+  overflow: hidden !important;
+  position: relative !important;
+  box-sizing: border-box !important;
+}
+
+/* 일자 숫자를 왼쪽 상단에 고정 */
+:deep(.fc-daygrid-day-top) {
+  display: flex !important;
+  justify-content: flex-start !important;
+  align-items: flex-start !important;
+  padding: 0.25rem 0.5rem 0.15rem 0.5rem !important;
+  width: 100% !important;
+  flex-shrink: 0 !important;
+  order: 1 !important;
+  position: relative !important;
+  left: 0 !important;
+  right: auto !important;
+  text-align: left !important;
 }
 
 :deep(.fc-daygrid-day-number) {
-  font-size: 0.9rem;
+  font-size: 0.9rem !important;
   font-weight: 500;
   color: var(--color-text-main);
-  padding: 0.25rem 0.5rem;
+  padding: 0.15rem 0.4rem !important;
   border-radius: 50%;
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-decoration: none; /* Remove underline if any */
+  min-width: 24px !important;
+  width: 24px !important;
+  height: 24px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-decoration: none !important;
+  margin: 0 !important;
+  margin-left: 0 !important;
+  margin-right: auto !important;
+  position: static !important;
+  float: none !important;
+  left: 0 !important;
+  right: auto !important;
 }
 
-:deep(.fc-day-today .fc-daygrid-day-number) {
+/* 일정 리스트 영역 - 최대한 많이 보이도록 */
+:deep(.fc-daygrid-day-events) {
+  width: 100% !important;
+  margin-top: 0.1rem !important;
+  padding: 0 !important;
+  order: 2 !important;
+  flex: 1 !important;
+  min-height: 0 !important;
+  overflow: hidden !important; /* 넘치는 일정 숨김 */
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+}
+
+:deep(.fc-daygrid-event) {
+  margin: 1px 0 !important;
+  padding: 2px 6px !important;
+  font-size: 0.75rem !important;
+  line-height: 1.2 !important;
+  border-radius: 3px !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  width: calc(100% - 4px) !important;
+  max-width: calc(100% - 4px) !important;
+  cursor: pointer !important;
+  text-align: left !important;
+  box-sizing: border-box !important;
+}
+
+/* 일정이 날짜 셀을 넘어가지 않도록 */
+:deep(.fc-daygrid-day-frame) {
+  overflow: hidden !important;
+}
+
+:deep(.fc-daygrid-day) {
+  overflow: hidden !important;
+}
+
+:deep(.fc-daygrid-event:hover) {
+  opacity: 0.9;
+  transform: translateX(1px);
+}
+
+/* 더보기 링크 스타일 */
+:deep(.fc-more-link) {
+  font-size: 0.7rem !important;
+  padding: 2px 4px !important;
+  margin-top: 2px !important;
+  border-radius: 3px !important;
+  text-align: left !important;
+  width: calc(100% - 4px) !important;
+}
+
+/* 오늘 날짜 스타일 - 선택된 날짜가 아닐 때만 적용 */
+:deep(.fc-day-today:not(.fc-day-selected) .fc-daygrid-day-number) {
   background-color: var(--color-primary);
   color: white;
+}
+
+/* 선택된 날짜 강조 - 오늘 날짜처럼 원형 배경 (오늘 날짜보다 우선순위 높음) */
+:deep(.fc-day-selected) {
+  background-color: rgba(79, 70, 229, 0.05) !important;
+}
+
+:deep(.fc-day-selected .fc-daygrid-day-frame) {
+  background-color: rgba(79, 70, 229, 0.05) !important;
+}
+
+:deep(.fc-day-selected .fc-daygrid-day-number) {
+  background-color: var(--color-primary) !important;
+  color: white !important;
+  font-weight: 600 !important;
+}
+
+/* 오늘 날짜이면서 선택된 날짜일 때 (선택된 날짜 스타일 우선) */
+:deep(.fc-day-today.fc-day-selected .fc-daygrid-day-number) {
+  background-color: var(--color-primary) !important;
+  color: white !important;
+  font-weight: 600 !important;
 }
 
 /* Events */
