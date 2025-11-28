@@ -103,7 +103,6 @@ const getStudentName = (studentId) => {
   return student ? student.name : studentId
 }
 
-
 const openAttendanceModal = (schedule) => {
   selectedSchedule.value = schedule
 
@@ -205,9 +204,64 @@ const handleEndClass = async (schedule) => {
   }
 }
 
+const recentHomeworks = ref({}) // { studentId: [homeworks] }
+const showHomeworkModal = ref(false)
+const currentHomeworks = ref([])
+const currentStudentName = ref('')
+
+const fetchRecentHomeworks = async () => {
+  if (!schedules.value.length) return
+
+  const studentIds = [...new Set(schedules.value.map((s) => s.studentId))]
+
+  const newRecentHomeworks = {}
+
+  for (const studentId of studentIds) {
+    try {
+      const res = await api.get(`/homework/student/${studentId}/recent`)
+      newRecentHomeworks[studentId] = res.data.data || []
+    } catch (error) {
+      console.error(`Failed to fetch homework for student ${studentId}:`, error)
+    }
+  }
+
+  recentHomeworks.value = newRecentHomeworks
+}
+
+const openHomeworkModal = (studentId) => {
+  currentStudentName.value = getStudentName(studentId)
+  currentHomeworks.value = recentHomeworks.value[studentId] || []
+  showHomeworkModal.value = true
+}
+
+const closeHomeworkModal = () => {
+  showHomeworkModal.value = false
+  currentHomeworks.value = []
+}
+
+const toggleHomeworkCompletion = async (homework) => {
+  try {
+    const res = await api.put(
+      `/homework/${homework.homeworkId}`,
+      {
+        isCompleted: !homework.isCompleted,
+      },
+      {
+        headers: { UserId: authStore.user.userId },
+      },
+    )
+    // Update local state
+    homework.isCompleted = res.data.data.isCompleted
+  } catch (error) {
+    console.error('Failed to update homework status:', error)
+    await modalStore.alert('숙제 상태 변경에 실패했습니다.')
+  }
+}
+
 onMounted(async () => {
   await fetchStudents()
   await fetchTodaySchedules()
+  await fetchRecentHomeworks()
 })
 </script>
 
@@ -271,6 +325,9 @@ onMounted(async () => {
           </div>
           <div v-else class="attendance-status"></div>
           <div class="action-buttons">
+            <button class="btn btn-secondary" @click="openHomeworkModal(schedule.studentId)">
+              📚 숙제 {{ recentHomeworks[schedule.studentId]?.length || 0 }}
+            </button>
             <button class="btn btn-primary" @click="openAttendanceModal(schedule)">
               {{ schedule.attendance ? '출석 수정' : '출석 체크' }}
             </button>
@@ -295,62 +352,103 @@ onMounted(async () => {
 
         <div class="modal-body-scrollable">
           <form @submit.prevent="handleSubmitAttendance">
-          <div class="form-group">
-            <label>출석 상태 <span class="required">*</span></label>
-            <div class="status-buttons">
-              <button
-                v-for="(label, status) in ATTENDANCE_STATUS"
-                :key="status"
-                type="button"
-                class="status-btn"
-                :class="{ active: getAttendanceStatusName(attendanceForm.status) === status }"
-                :style="{
-                  borderColor:
-                    getAttendanceStatusName(attendanceForm.status) === status
-                      ? ATTENDANCE_STATUS_COLORS[status].color
-                      : 'var(--color-border)',
-                  backgroundColor:
-                    getAttendanceStatusName(attendanceForm.status) === status
-                      ? ATTENDANCE_STATUS_COLORS[status].bgColor
-                      : 'transparent',
-                  color:
-                    getAttendanceStatusName(attendanceForm.status) === status
-                      ? ATTENDANCE_STATUS_COLORS[status].color
-                      : 'var(--color-text-main)',
-                }"
-                @click="attendanceForm.status = status"
-              >
-                {{ label }}
-              </button>
+            <div class="form-group">
+              <label>출석 상태 <span class="required">*</span></label>
+              <div class="status-buttons">
+                <button
+                  v-for="(label, status) in ATTENDANCE_STATUS"
+                  :key="status"
+                  type="button"
+                  class="status-btn"
+                  :class="{ active: getAttendanceStatusName(attendanceForm.status) === status }"
+                  :style="{
+                    borderColor:
+                      getAttendanceStatusName(attendanceForm.status) === status
+                        ? ATTENDANCE_STATUS_COLORS[status].color
+                        : 'var(--color-border)',
+                    backgroundColor:
+                      getAttendanceStatusName(attendanceForm.status) === status
+                        ? ATTENDANCE_STATUS_COLORS[status].bgColor
+                        : 'transparent',
+                    color:
+                      getAttendanceStatusName(attendanceForm.status) === status
+                        ? ATTENDANCE_STATUS_COLORS[status].color
+                        : 'var(--color-text-main)',
+                  }"
+                  @click="attendanceForm.status = status"
+                >
+                  {{ label }}
+                </button>
+              </div>
             </div>
-          </div>
 
-          <div class="form-group">
-            <label>등원 시간</label>
-            <input v-model="attendanceForm.checkInTime" type="datetime-local" />
-          </div>
+            <div class="form-group">
+              <label>등원 시간</label>
+              <input v-model="attendanceForm.checkInTime" type="datetime-local" />
+            </div>
 
-          <div class="form-group">
-            <label>하원 시간</label>
-            <input v-model="attendanceForm.checkOutTime" type="datetime-local" />
-          </div>
+            <div class="form-group">
+              <label>하원 시간</label>
+              <input v-model="attendanceForm.checkOutTime" type="datetime-local" />
+            </div>
 
-          <div class="form-group">
-            <label>메모</label>
-            <textarea
-              v-model="attendanceForm.memo"
-              placeholder="특이사항이나 사유를 입력하세요"
-              rows="3"
-            ></textarea>
-          </div>
+            <div class="form-group">
+              <label>메모</label>
+              <textarea
+                v-model="attendanceForm.memo"
+                placeholder="특이사항이나 사유를 입력하세요"
+                rows="3"
+              ></textarea>
+            </div>
 
-            <div class="modal-actions" style="margin-top: 0;">
-              <button type="button" class="btn btn-secondary btn-full" @click="closeAttendanceModal">
+            <div class="modal-actions" style="margin-top: 0">
+              <button
+                type="button"
+                class="btn btn-secondary btn-full"
+                @click="closeAttendanceModal"
+              >
                 취소
               </button>
               <button type="submit" class="btn btn-primary btn-full">저장</button>
             </div>
           </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Homework Modal -->
+    <div v-if="showHomeworkModal" class="modal-overlay" @click.self="closeHomeworkModal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 class="modal-title">{{ currentStudentName }} 학생의 지난 숙제</h3>
+        </div>
+
+        <div class="modal-body">
+          <div v-if="currentHomeworks.length === 0" class="empty-homework">
+            <p>등록된 지난 숙제가 없습니다.</p>
+          </div>
+          <ul v-else class="homework-list">
+            <li
+              v-for="homework in currentHomeworks"
+              :key="homework.homeworkId"
+              class="homework-item"
+            >
+              <label class="homework-check">
+                <input
+                  type="checkbox"
+                  :checked="homework.isCompleted"
+                  @change="toggleHomeworkCompletion(homework)"
+                />
+                <span class="homework-content" :class="{ completed: homework.isCompleted }">
+                  {{ homework.content }}
+                </span>
+              </label>
+            </li>
+          </ul>
+        </div>
+
+        <div class="modal-actions">
+          <button class="btn btn-primary btn-full" @click="closeHomeworkModal">확인</button>
         </div>
       </div>
     </div>
@@ -562,5 +660,53 @@ onMounted(async () => {
   .status-buttons {
     grid-template-columns: 1fr;
   }
+}
+
+.empty-homework {
+  text-align: center;
+  padding: 2rem;
+  color: var(--color-text-muted);
+}
+
+.homework-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.homework-item {
+  padding: 0.75rem;
+  background-color: #f8fafc;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+}
+
+.homework-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  cursor: pointer;
+  width: 100%;
+}
+
+.homework-check input[type='checkbox'] {
+  margin-top: 0.25rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  cursor: pointer;
+}
+
+.homework-content {
+  font-size: 1rem;
+  color: var(--color-text-main);
+  line-height: 1.5;
+}
+
+.homework-content.completed {
+  text-decoration: line-through;
+  color: var(--color-text-muted);
 }
 </style>

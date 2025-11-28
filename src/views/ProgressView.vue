@@ -1,11 +1,11 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useModalStore } from '@/stores/modal'
 import api from '@/api'
-import { toDateTimeLocal, formatDate } from '@/utils/dateUtils'
+import { toDateTimeLocal, formatDate, toLocalISOString, formatTime } from '@/utils/dateUtils'
 import { getLabel, getName } from '@/utils/enumUtils'
-import { getUnderstandingColor } from '@/utils/understandingUtils' // 색상은 디자인 요소라 유지
+import { getUnderstandingColor } from '@/utils/understandingUtils'
 
 const authStore = useAuthStore()
 const modalStore = useModalStore()
@@ -20,6 +20,7 @@ const showProgressModal = ref(false)
 const textbooks = ref([])
 const progressHistory = ref([])
 const studentSubjects = ref([])
+const schedules = ref([]) // 일정 목록
 
 // Forms
 const textbookForm = ref({
@@ -29,6 +30,7 @@ const textbookForm = ref({
 })
 
 const progressForm = ref({
+  scheduleId: '', // 일정 ID
   date: toDateTimeLocal(),
   unit: '',
   pageStart: '',
@@ -100,6 +102,58 @@ const fetchProgressHistory = async (textbookId) => {
   }
 }
 
+const fetchSchedules = async () => {
+  console.log('fetchSchedules called, selectedStudentId:', selectedStudentId.value)
+  if (!selectedStudentId.value) {
+    console.log('No student selected, returning')
+    return
+  }
+  try {
+    const today = new Date()
+    const start = new Date(today)
+    start.setMonth(start.getMonth() - 2)
+    const end = new Date(today)
+    end.setMonth(end.getMonth() + 1)
+
+    console.log('Fetching schedules with params:', {
+      userId: authStore.user.userId,
+      start: toLocalISOString(start),
+      end: toLocalISOString(end),
+    })
+
+    const response = await api.get('/schedules/range', {
+      params: {
+        userId: authStore.user.userId,
+        start: toLocalISOString(start),
+        end: toLocalISOString(end),
+      },
+    })
+
+    console.log('Schedules API response:', response.data.data)
+
+    const filteredSchedules = response.data.data
+      .filter((s) => s.studentId === selectedStudentId.value)
+      .sort((a, b) => new Date(b.classDate) - new Date(a.classDate))
+
+    console.log('Filtered schedules for student:', filteredSchedules)
+    schedules.value = filteredSchedules
+  } catch (error) {
+    console.error('Failed to fetch schedules:', error)
+  }
+}
+
+watch(
+  () => progressForm.value.scheduleId,
+  (newId) => {
+    if (newId) {
+      const schedule = schedules.value.find((s) => s.scheduleId === newId)
+      if (schedule) {
+        progressForm.value.date = toDateTimeLocal(new Date(schedule.classDate))
+      }
+    }
+  },
+)
+
 const selectStudent = (id) => {
   selectedStudentId.value = id
   selectedTextbookId.value = null
@@ -119,8 +173,11 @@ const openTextbookModal = () => {
   showTextbookModal.value = true
 }
 
-const openProgressModal = () => {
+const openProgressModal = async () => {
+  await fetchSchedules()
+
   progressForm.value = {
+    scheduleId: '',
     date: toDateTimeLocal(),
     unit: '',
     pageStart: '',
@@ -192,6 +249,7 @@ const saveProgress = async () => {
     await api.post('/progress', {
       textbookId: selectedTextbookId.value,
       studentId: selectedStudentId.value,
+      scheduleId: progressForm.value.scheduleId || null,
       userId: authStore.user.userId,
       lessonDate: toLocalISOString(progressForm.value.date),
       unit: progressForm.value.unit,
@@ -225,7 +283,7 @@ const toggleHomeworkComplete = async (homeworkId, currentStatus) => {
         headers: {
           UserId: authStore.user.userId,
         },
-      }
+      },
     )
 
     // Refresh progress history to update UI
@@ -342,7 +400,10 @@ onMounted(() => {
                     <p v-if="record.memo" class="memo">{{ record.memo }}</p>
 
                     <!-- 숙제 섹션 -->
-                    <div v-if="record.homeworks && record.homeworks.length > 0" class="homework-section-card">
+                    <div
+                      v-if="record.homeworks && record.homeworks.length > 0"
+                      class="homework-section-card"
+                    >
                       <div class="homework-header">
                         <span class="homework-title">📝 숙제 ({{ record.homeworks.length }})</span>
                       </div>
@@ -357,21 +418,25 @@ onMounted(() => {
                             <button
                               class="homework-checkbox"
                               :class="{ checked: homework.isCompleted }"
-                              @click="toggleHomeworkComplete(homework.homeworkId, homework.isCompleted)"
+                              @click="
+                                toggleHomeworkComplete(homework.homeworkId, homework.isCompleted)
+                              "
                               :title="homework.isCompleted ? '완료 취소' : '완료 처리'"
                             >
                               <span v-if="homework.isCompleted">✓</span>
                             </button>
-                            <span class="homework-text" :class="{ completed: homework.isCompleted }">
+                            <span
+                              class="homework-text"
+                              :class="{ completed: homework.isCompleted }"
+                            >
                               {{ homework.content }}
                             </span>
                           </div>
                           <div v-if="homework.dueDate" class="homework-meta">
-                            <span class="homework-due">기한: {{ formatDate(homework.dueDate) }}</span>
-                            <span
-                              v-if="homework.completedAt"
-                              class="homework-completed"
+                            <span class="homework-due"
+                              >기한: {{ formatDate(homework.dueDate) }}</span
                             >
+                            <span v-if="homework.completedAt" class="homework-completed">
                               완료: {{ formatDate(homework.completedAt) }}
                             </span>
                           </div>
@@ -443,96 +508,113 @@ onMounted(() => {
         </div>
         <div class="modal-body-scrollable">
           <form @submit.prevent="saveProgress">
-          <div class="form-group">
-            <label>날짜</label>
-            <input v-model="progressForm.date" type="datetime-local" required />
-          </div>
-          <div class="form-group">
-            <label>단원명</label>
-            <input v-model="progressForm.unit" placeholder="예: 2. 나머지정리" required />
-          </div>
-          <div class="form-row">
             <div class="form-group">
-              <label>시작 페이지</label>
-              <input v-model="progressForm.pageStart" type="number" placeholder="30" />
-            </div>
-            <div class="form-group">
-              <label>끝 페이지</label>
-              <input v-model="progressForm.pageEnd" type="number" placeholder="35" />
-            </div>
-          </div>
-          <div class="form-group">
-            <label>이해도</label>
-            <div class="radio-group">
-              <label :class="{ 'radio-checked': progressForm.understanding === 'HIGH' }">
-                <input type="radio" v-model="progressForm.understanding" value="HIGH" />
-                <span>상</span>
-              </label>
-              <label :class="{ 'radio-checked': progressForm.understanding === 'MEDIUM' }">
-                <input type="radio" v-model="progressForm.understanding" value="MEDIUM" />
-                <span>중</span>
-              </label>
-              <label :class="{ 'radio-checked': progressForm.understanding === 'LOW' }">
-                <input type="radio" v-model="progressForm.understanding" value="LOW" />
-                <span>하</span>
-              </label>
-            </div>
-          </div>
-          <div class="form-group">
-            <label>메모</label>
-            <textarea v-model="progressForm.memo" rows="3" placeholder="특이사항 입력"></textarea>
-          </div>
-
-          <!-- 숙제 섹션 -->
-          <div class="form-group homework-section">
-            <div class="section-header-small">
-              <label>📝 숙제</label>
-              <button type="button" class="btn btn-sm btn-outline" @click.prevent="addHomework">
-                + 추가
-              </button>
-            </div>
-
-            <!-- 숙제 입력 폼 -->
-            <div v-if="progressForm.homeworks.length < 5" class="homework-input-group">
-              <input
-                v-model="homeworkForm.content"
-                type="text"
-                placeholder="숙제 내용을 입력하세요"
-                @keyup.enter="addHomework"
-              />
-              <input
-                v-model="homeworkForm.dueDate"
-                type="datetime-local"
-                placeholder="제출 기한 (선택)"
-              />
-              <button type="button" class="btn btn-sm btn-primary" @click="addHomework">
-                추가
-              </button>
-            </div>
-
-            <!-- 숙제 리스트 -->
-            <div v-if="progressForm.homeworks.length > 0" class="homework-list">
-              <div
-                v-for="(homework, index) in progressForm.homeworks"
-                :key="index"
-                class="homework-item"
-              >
-                <span class="homework-content">{{ homework.content }}</span>
-                <span v-if="homework.dueDate" class="homework-due-date">
-                  {{ formatDate(homework.dueDate) }}
-                </span>
-                <button
-                  type="button"
-                  class="btn-icon"
-                  @click="removeHomework(index)"
-                  title="삭제"
+              <label>수업 일정 선택 <span class="required">*</span></label>
+              <select v-model="progressForm.scheduleId" required>
+                <option value="" disabled>일정을 선택하세요</option>
+                <option
+                  v-for="schedule in schedules"
+                  :key="schedule.scheduleId"
+                  :value="schedule.scheduleId"
                 >
-                  ×
-                </button>
+                  {{ formatDate(schedule.classDate) }} {{ formatTime(schedule.classDate) }} ({{
+                    getLabel(schedule.subject)
+                  }})
+                </option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>날짜 (자동 입력)</label>
+              <input v-model="progressForm.date" type="datetime-local" required readonly />
+            </div>
+            <div class="form-group">
+              <label>단원명</label>
+              <input v-model="progressForm.unit" placeholder="예: 2. 나머지정리" required />
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>시작 페이지</label>
+                <input v-model="progressForm.pageStart" type="number" placeholder="30" />
+              </div>
+              <div class="form-group">
+                <label>끝 페이지</label>
+                <input v-model="progressForm.pageEnd" type="number" placeholder="35" />
               </div>
             </div>
-            <p v-else class="help-text">숙제를 추가하려면 위 입력란에 내용을 입력하고 추가 버튼을 클릭하세요.</p>
-          </div>
+            <div class="form-group">
+              <label>이해도</label>
+              <div class="radio-group">
+                <label :class="{ 'radio-checked': progressForm.understanding === 'HIGH' }">
+                  <input type="radio" v-model="progressForm.understanding" value="HIGH" />
+                  <span>상</span>
+                </label>
+                <label :class="{ 'radio-checked': progressForm.understanding === 'MEDIUM' }">
+                  <input type="radio" v-model="progressForm.understanding" value="MEDIUM" />
+                  <span>중</span>
+                </label>
+                <label :class="{ 'radio-checked': progressForm.understanding === 'LOW' }">
+                  <input type="radio" v-model="progressForm.understanding" value="LOW" />
+                  <span>하</span>
+                </label>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>메모</label>
+              <textarea v-model="progressForm.memo" rows="3" placeholder="특이사항 입력"></textarea>
+            </div>
+
+            <!-- 숙제 섹션 -->
+            <div class="form-group homework-section">
+              <div class="section-header-small">
+                <label>📝 숙제</label>
+                <button type="button" class="btn btn-sm btn-outline" @click.prevent="addHomework">
+                  + 추가
+                </button>
+              </div>
+
+              <!-- 숙제 입력 폼 -->
+              <div v-if="progressForm.homeworks.length < 5" class="homework-input-group">
+                <input
+                  v-model="homeworkForm.content"
+                  type="text"
+                  placeholder="숙제 내용을 입력하세요"
+                  @keyup.enter="addHomework"
+                />
+                <input
+                  v-model="homeworkForm.dueDate"
+                  type="datetime-local"
+                  placeholder="제출 기한 (선택)"
+                />
+                <button type="button" class="btn btn-sm btn-primary" @click="addHomework">
+                  추가
+                </button>
+              </div>
+
+              <!-- 숙제 리스트 -->
+              <div v-if="progressForm.homeworks.length > 0" class="homework-list">
+                <div
+                  v-for="(homework, index) in progressForm.homeworks"
+                  :key="index"
+                  class="homework-item"
+                >
+                  <span class="homework-content">{{ homework.content }}</span>
+                  <span v-if="homework.dueDate" class="homework-due-date">
+                    {{ formatDate(homework.dueDate) }}
+                  </span>
+                  <button
+                    type="button"
+                    class="btn-icon"
+                    @click="removeHomework(index)"
+                    title="삭제"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+              <p v-else class="help-text">
+                숙제를 추가하려면 위 입력란에 내용을 입력하고 추가 버튼을 클릭하세요.
+              </p>
+            </div>
 
             <div class="modal-actions">
               <button type="button" class="btn btn-secondary" @click="showProgressModal = false">
@@ -813,7 +895,7 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
-.radio-group label input[type="radio"] {
+.radio-group label input[type='radio'] {
   margin: 0;
   flex-shrink: 0;
   width: 18px;
@@ -1026,7 +1108,7 @@ onMounted(() => {
     border-color: var(--color-primary);
   }
 
-  .radio-group label input[type="radio"]:checked + span {
+  .radio-group label input[type='radio']:checked + span {
     color: var(--color-primary);
     font-weight: 600;
   }
